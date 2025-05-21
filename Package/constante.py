@@ -1,4 +1,3 @@
-
 # Constante pour initialiser le bus CAN
 CAN_BAUD_250K = b"250"
 CANUSB_ACCEPTANCE_CODE_ALL = 0x0
