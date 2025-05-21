@@ -1,5 +1,5 @@
 
-
+""" ausecours"""
 
 # Constante pour initialiser le bus CAN
 CAN_BAUD_250K = b"250"
