@@ -10,7 +10,7 @@ from PyQt5 import uic
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMessageBox, QMainWindow, QTreeWidget, QTreeWidgetItem, QPushButton
 from PyQt5.QtGui import QIcon
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QPixmap
 
 from Package.Constante import *
 from Package.CAN_dll import CANDll
@@ -407,21 +407,30 @@ class CANApplication(QMainWindow):
             self.on_click_read()
         else:
             msg = QMessageBox()
-            msg.setIcon(QMessageBox.Information)
             msg.setWindowTitle("OUVERTURE DE L'ADAPTATEUR!")
             msg.setText("Vous n'êtes pas raccordé à l'adaptateur du bus CAN sur l'USB.")
             msg.setStandardButtons(QMessageBox.Ok)
+            msg.setWindowIcon(QIcon("VoilierImage.ico"))
 
+            # Bouton personnalisé
             btnFermer = QPushButton("Quitter")
             msg.addButton(btnFermer, QMessageBox.RejectRole)
 
+            # Icône personnalisée
+            pix = QPixmap("VoilierImage.ico")
+            msg.setIconPixmap(pix)
+
             result = msg.exec_()
+
             if result == QMessageBox.Ok:
                 print("OK cliqué → l'application continue")
             elif msg.clickedButton() == btnFermer:
                 # Deuxième message avec Oui / Non
                 warning = QMessageBox()
                 warning.setIcon(QMessageBox.Warning)
+                warning.setWindowIcon(QIcon("VoilierImage.ico"))
+                pix = QPixmap("VoilierImage.ico")
+                warning.setIconPixmap(pix)
                 warning.setWindowTitle("Attention")
                 warning.setText("Voulez vous arrêter l'application ?")
 

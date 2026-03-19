@@ -400,7 +400,6 @@ class MainWindow(QMainWindow):
             "Voulez-vous vraiment quitter l'application ?",
             QMessageBox.Yes | QMessageBox.No
         )
-
         if reply == QMessageBox.Yes:
             event.accept()  # on laisse fermer
             # self.close_both()
