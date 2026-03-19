@@ -759,7 +759,7 @@ class MainWindow(QMainWindow):
         # Démarrer Quart si nécessaire
         if not self._quart_running:
             self.start_quart_server()
-        webbrowser.open("http://127.0.0.1:5000/aide/")
+        webbrowser.open("http://127.0.0.1:5000/aide/index")
 
     # Méthode pour avoir quatre boutons personalisés, qui sont le précédent, le suivant, valider et annuler ------------
     @staticmethod
