@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<!--suppress ALL -->
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Aide de l'application{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('aide.static', filename='css/style.css') }}">
+
+        <!-- Ajoutez ces liens dans la section head -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+
+    <!-- Pour avoir un style similaire à PyCharm (thème Darcula) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/darcula.min.css">
+    <link href="{{ url_for('aide.static', filename='favicon.ico') }}" rel="icon" type="image/x-icon">
+
+</head>
+<body>
+    <nav>
+        <ul>
+            <li><img src = "{{url_for('aide.static', filename='images/VoilierImage.png') }}" width="25" height="25"></li>
+            <li><a id="accueil" href="{{ url_for('aide.aide_index') }}"> &nbsp;Accueil </a></li>
+            <li><a id="install" href="{{ url_for('aide.aide_install_page') }}"> &nbsp;Installation </a></li>
+            <li><a id="enregistre" href="{{ url_for('aide.aide_enregistre_page') }}"> &nbsp;Enregistrement </a></li>
+            <li><a id="import" href="{{ url_for('aide.aide_import_page') }}"> &nbsp;Import </a></li>
+            <li><a id="export" href="{{ url_for('aide.aide_export_page') }}"> &nbsp;Export </a></li>
+            <li><a id="carte" href="{{ url_for('aide.aide_cartes_page') }}"> &nbsp;Carte </a></li>
+            <li><a id="nmea" href="{{ url_for('aide.aide_nmea_page') }}"> &nbsp;NMEA 2000</a></li>
+        </ul>
+    </nav>
+
+    <div class="content">
+        {% block content %}{% endblock %}
+    </div>
+<script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        document.querySelectorAll('pre code').forEach((el) => {
+            hljs.highlightElement(el);
+        });
+    });
+</script>
+
+</body>
+</html>

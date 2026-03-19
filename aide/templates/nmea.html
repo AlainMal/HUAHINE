@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Aide - NMEA 2000{% endblock %}
+
+{% block content %}
+<style>
+    nav #nmea {
+    background-color: red;
+}
+</style>
+<h1 class="main-title">Visualiser le NMEA 2000</h1>
+
+<div class="section">
+    <h2 class="section-title">Obtenir la liste des instruments NMEA 2000.</h2>
+    <ol class="numbered-list">
+        <li>Il faut cliquer sur le bouton en forme de réseau 🖥️.
+            <ul>
+                Le PGN 126996 est utilisé pour visualiser les instruments NMEA 2000, il est demandé par le PGN 59904.
+                Vous pouvez le re-demander avec le bouton "Demander"
+            </ul>
+        </li>
+
+    </ol>
+        <div class="map-preview">
+            <ul>
+                <img src="/aide/static/images/nmea2000.png?v=2"
+                     alt="Aperçu NMEA 2000"
+                     style="width: 80%;
+                    max-height: 600px;
+                    object-fit: cover;
+                    margin: 0 auto 20px auto;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    display: block;">
+            </ul>
+        </div>
+
+</div>
+    <div class="conclusion-box success">
+        <strong>Remarque :</strong> Vous voyez leurs adresses, leurs modèles, leurs versions et leurs types et
+        versions de code.
+    </div>
+
+<script>
+    // JavaScript spécifique à la page d'import si nécessaire
+    document.addEventListener('DOMContentLoaded', function() {
+        // Votre code JavaScript ici
+    });
+</script>
+{% endblock %}

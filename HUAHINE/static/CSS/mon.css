@@ -1,0 +1,942 @@
+li:nth-child(odd) {
+  background-color: #f0f0f0; /* Couleur pour les éléments impairs */
+}
+li:nth-child(even) {
+  background-color: #FFE4C4; /* Couleur pour les éléments impairs */
+}
+.f_modal {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.f_modal-content {
+  background-color: #00BFFF;
+  padding: 30px;
+  border-radius: 10px;
+  width: 700px;       /* Largeur fixe explicite */
+  max-width: 95vw;     /* Ne dépasse pas la fenêtre */
+  height: 80vh;
+  overflow-y: auto;
+  overflow-x: auto;
+  font-size: 1.1rem;
+  font-family: "Segoe UI", sans-serif;
+  box-shadow: 0 0 20px rgba(0,0,0,0.3);
+  position: relative;
+}
+
+.f_modal-content h2{
+    position: absolute;
+    top: 15px;
+
+}
+.f_close-button {
+    position: absolute;
+    right: 20px;
+    background: #f44336;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+.f_close-button:hover {
+  background-color: #da190b;
+  transform: scale(0.95);
+}
+.f_raf-button {
+    position: absolute;
+    right: 130px;
+    background: #5Fa049;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: visibility 0s, opacity 0.2s linear;
+}
+
+.f_raf-button.hidden {
+    visibility: hidden;
+    opacity: 0;
+}
+
+.f_raf-status {
+    position: absolute;
+    right: 130px;
+    padding: 8px 12px;
+    margin-left: 10px;
+    font-style: italic;
+    opacity: 0.7;
+}
+
+
+.f_raf-button:hover {
+  background-color: #0f5132;
+  transform: scale(0.95);
+}
+
+#f_config-list {
+    position: relative;
+    top: 80px;
+  margin-top: 0;
+  list-style-type: none;
+  padding-left: 10px;
+}
+
+#f_config-list li {
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+#f_config-list li span{
+    margin-left: 20px;
+    font-family: "Segoe UI", sans-serif;
+    font-size: 14px;
+}
+/* ===== ICÔNES ET MARQUEURS ===== */
+/* Popup légèrement transparente pour la fenêtre contextuelle des points de l'historique */
+.transparent-popup .leaflet-popup-content-wrapper {
+    background: rgba(255, 255, 255, 0.75);
+    box-shadow: 0 3px 14px rgba(0, 0, 0, 0.0);
+}
+.transparent-popup .leaflet-popup-tip {
+    background: rgba(255, 255, 255, 0.85);
+}
+/* Style pour l'icône de pin/marqueur */
+.pin-icon {
+    text-align: center;
+    line-height: 20px;
+    font-size: 20px;
+    background: none;
+    border: none;
+}
+
+/* ===== MISE EN PAGE PRINCIPALE ===== */
+/* Suppression des marges par défaut du navigateur */
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+/* Configuration de la carte pour occuper tout l'écran */
+#map {
+    width: 100%;
+    height: 100vh;
+    position: fixed;
+    overflow: hidden;
+}
+
+/* ===== PANNEAU D'INFORMATIONS ===== */
+/* Affichage des informations en haut à droite */
+#info {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    background: white;
+    padding: 10px;
+    border-radius: 4px;
+    font-family: monospace;
+}
+
+/* Style pour le texte en gras dans les infos */
+strong {
+    color : #3a3fd0;
+}
+
+/* ===== LÉGENDE ET CONTRÔLES ===== */
+/* Panneau de légende en bas à droite */
+.legend {
+    position: absolute;
+    bottom: 30px;
+    right: 10px;
+    z-index: 1000;
+    background: white;
+    padding: 10px;
+    border-radius: 4px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    font-family: Arial, sans-serif;
+    border: 2px solid #1e88e5;
+    width: 280px; /* Largeur fixe pour maintenir la cohérence */
+}
+
+/* Labels dans la légende */
+.legend label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+/* Champs de saisie dans la légende */
+.legend input {
+    width: 60px;
+    margin-right: 5px;
+    padding: 4px;
+}
+
+/* Boutons dans la légende */
+.legend button {
+    padding: 4px 8px;
+    background: #1e88e5;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* Champ de nom de fichier plus large */
+.legend #filenameInput {
+    width: 60%;
+}
+
+/* Effet hover sur les boutons de légende */
+.legend button:hover {
+    background: #1976d2;
+}
+
+/* Informations de projection */
+#projectionInfo {
+    margin-top: 5px;
+    font-size: 0.9em;
+    color: #666;
+}
+
+/* ===== CONTRÔLES DE COUCHES LEAFLET ===== */
+/* Panneau de sélection des couches cartographiques */
+.leaflet-control-layers {
+    position: absolute !important;
+    top: 0 !important;
+    left: 50px !important;    /* Marge à gauche pour éviter les conflits */
+    background: white;
+    padding: 10px;
+    width: 130px !important;
+    min-width: 130px !important;
+    z-index: 1001 !important;
+    border: 2px solid #1e88e5;
+    border-radius: 6px;
+}
+
+/* Position des conteneurs Leaflet */
+.leaflet-left {
+    left: 0 !important;
+}
+
+.leaflet-top {
+    top: 0 !important;
+}
+
+/* ===== MARQUEURS DE NAVIRES AIS ===== */
+/* Conteneur pour les marqueurs de navires */
+.ship-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Icône personnalisée de navire */
+.custom-ship-icon {
+    background: none;
+    border: none;
+}
+
+/* Taille des icônes de navire */
+.ship-icon {
+    width: 30px;
+    height: 25px;
+}
+
+/* Images dans les icônes de navire */
+.ship-icon img {
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Empêche les interactions avec l'image */
+}
+
+/* ===== BOUTON DE CENTRAGE ===== */
+/* Bouton pour recentrer la carte */
+.center-button {
+    position: absolute;
+    left: 10px;
+    top: 150px;
+    transform: translateY(-50%);
+    z-index: 1000;
+    width: 34px;
+    height: 34px;
+    background: white;
+    border: 2px solid #1e88e5;
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 0;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Effet hover sur le bouton de centrage */
+.center-button:hover {
+    background-color: #B8E6FE;
+}
+
+/* ===== ANIMATIONS ===== */
+/* Animation pour les lignes pointillées animées */
+@keyframes dashmove {
+    0% {
+        stroke-dashoffset: 0;
+    }
+    100% {
+        stroke-dashoffset: -20;
+    }
+}
+
+/* Classe pour appliquer l'animation de ligne pointillée */
+.animated-dash {
+    animation: dashmove 1s linear infinite;
+}
+
+/* ===== CONTRÔLES D'HISTORIQUE ===== */
+/* Panneau de contrôles pour l'historique de navigation */
+.history-controls {
+    position: absolute;
+    top: 150px;  /* Positionné sous les autres contrôles */
+    right: 10px;
+    z-index: 1000;
+    background: white;
+    padding: 10px;
+    border-radius: 4px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+/* Boutons dans les contrôles d'historique */
+.history-controls button {
+    padding: 4px 8px;
+    background: #1e88e5;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 100%;
+}
+
+/* Effet hover sur les boutons d'historique */
+.history-controls button:hover {
+    background: #1976d2;
+}
+
+/* ===== POPUPS PERSISTANTS ===== */
+/* Style pour les popups qui restent affichés */
+.persistent-popup {
+    z-index: 1000;
+}
+
+/* Contenu des popups persistants avec transparence */
+.persistent-popup .leaflet-popup-content-wrapper {
+    background: rgba(255, 255, 255, 0.9);
+}
+
+/* ===== BOUTONS DE BASCULEMENT ===== */
+
+/* Classe utilitaire pour masquer des éléments */
+.hidden {
+    display: none !important;
+}
+
+/* ===== CONTRÔLES DE MESURE LEAFLET ===== */
+/* Positionnement du contrôle de mesure de distance sur la carte */
+.leaflet-control-measure {
+    position: fixed !important;
+    left: 10px !important;
+    top: 50% !important;
+    transform: translateY(-50%); /* Centre verticalement */
+    z-index: 1000 !important;
+    background: white;
+
+    border-radius: 6px;
+}
+/* Style de base pour tous les contrôles Leaflet */
+.leaflet-control {
+    clear: both;
+    position: relative;
+    z-index: 1000;
+}
+
+.leaflet-bar a#distanceMeasureButton {
+    border: none !important; /* Supprime la bordure grise héritée */
+    background-color: white !important;
+
+}
+
+/* Barres de contrôles Leaflet */
+.leaflet-bar {
+    background-color: white;
+    border: 2px solid #1e88e5;
+    border-radius: 6px;
+}
+
+/* Liens dans les barres de contrôles */
+.leaflet-bar a {
+    width: 35px !important;
+    height: 35px !important;
+    line-height: 30px !important;
+    display: block !important;
+    text-align: center;
+    text-decoration: none;
+    color: black;
+    background-color: white;
+}
+
+/* Effet hover sur les liens des barres de contrôles */
+.leaflet-bar a:hover {
+    background-color: #f4f4f4;
+}
+
+/* ===== MENU HAMBURGER ===== */
+/* Bouton menu hamburger positionné à gauche */
+:root {
+    --menu-button-top: 90%; /* Valeur par défaut pour la position du bouton menu */
+}
+
+.toggle-menu {
+    position: fixed;
+    left: 10px;
+    top: var(--menu-button-top, 86%); /* Variable CSS pour personnalisation */
+    transform: translateY(-50%);
+    width: 34px;
+    height: 34px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 2px solid #1e88e5;
+    border-radius: 6px;
+    cursor: pointer;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+    color: #1e88e5;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+
+/* Effet hover animé sur le menu */
+.toggle-menu:hover {
+    background-color: #B8E6FE;
+    color: white;
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3);
+}
+
+/* Effet lors du clic sur le menu */
+.toggle-menu:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+/* ===== BOUTONS D'INFORMATION ===== */
+/* Ces bouton sont contenu dans un container */
+.button-container {
+    position: fixed;
+    left: 10px;
+    top: 80%;
+    transform: translateY(-50%);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    align-items: flex-start;
+}
+.button {
+    width: 34px;
+    height: 34px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    border: 2px solid #1e88e5;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    z-index: 1000;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.button:hover {
+  background-color: #B8E6FE;
+  transform: scale(1.1);
+}
+
+/* État actif du bouton d'info */
+#toggleInfoButton.active {
+    background: #00FF00 !important;
+    color: white !important; /* Couleur quand les infos sont visibles */
+}
+
+/* État actif du bouton d'info */
+#toggleVent.active {
+    background: #00FF00 !important;
+    color: white !important; /* Couleur quand les infos sont visibles */
+}
+
+/* ===== BOUTON DE MESURE DE DISTANCE (redéfinition) ===== */
+.measure-button-container {
+    position: fixed;
+    left: 1px;
+    top: 45%;
+    transform: translateY(-50%);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    align-items: flex-start;
+}
+
+.measure-button {
+    width: 30px;
+    height: 30px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    border: 2px solid #1e88e5;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    z-index: 1000;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.measure-button:hover {
+  background-color: #B8E6FE;
+  transform: scale(1.1);
+}
+
+
+
+/* État actif du bouton de mesure */
+#distanceMeasureButton.active {
+    background: #00FF00;
+    color: white;
+}
+
+/* ===== POSITIONNEMENT SPÉCIFIQUE ===== */
+/* Position du contrôle de mesure sur la carte */
+.leaflet-control-measure {
+    margin-top: 46vh !important;
+}
+
+/* Marge spécifique pour le contrôle de mesure à gauche */
+.leaflet-left .leaflet-control-measure {
+    margin-left: 0.1% !important;
+}
+
+/* ===== BOUTONS D'ACTION ===== */
+/* Styles génériques pour tous les boutons d'action */
+.action-btn {
+    transition: all 0.3s ease;
+    font-family: Arial, sans-serif;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Effet hover général pour les boutons d'action */
+.action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    background: #B8E6FE;
+}
+
+/* Effets hover spécifiques par type de bouton */
+.start-btn:hover { background: #45a049 !important; } /* Vert pour démarrer */
+.stop-btn:hover { background: #da190b !important; } /* Rouge pour arrêter */
+.save-btn:hover { background: #0b7dda !important; } /* Bleu pour sauvegarder */
+.load-btn:hover { background: #e68900 !important; } /* Orange pour charger */
+.clear-btn:hover { background: #757575 !important; } /* Gris pour effacer */
+#supprime:hover { background: #da190b !important; } /* Rouge pour supprimer */
+
+/* ===== ANIMATIONS DE SECTIONS ===== */
+/* Transition pour les sections principales */
+.recording-section, .file-section, .stats-section {
+    transition: box-shadow 0.3s ease;
+}
+
+/* Effet hover sur les sections */
+.recording-section:hover, .file-section:hover, .stats-section:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+/* Adaptations pour les très petits écrans */
+@media (max-width: 300px) {
+    /* Boutons de fichier en colonne unique */
+    .file-buttons {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Contrôles d'enregistrement empilés verticalement */
+    .recording-controls {
+        flex-direction: column !important;
+        gap: 5px !important;
+    }
+}
+
+/* ===== BOUTON MMSI ===== */
+/* Bouton pour afficher les informations MMSI des navires */
+.mmsi-button {
+    position: absolute;
+    top: calc(82.5vh);
+    left: 10px;
+    background-color: white;
+    color: white;
+    border: 2px solid #1e88e5;
+    border-radius: 6px;
+    width: 35px;
+    height: 35px;
+    cursor: pointer;
+    font-size: 16px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    z-index: 1000;
+    transition: all 0.3s ease;
+}
+
+/* Effet hover sur le bouton MMSI */
+.mmsi-button:hover {
+    background-color: #B8E6FE;
+    transform: scale(1.1);
+}
+
+.ais-visibility-button {
+    position: fixed;
+    top: 180px;
+    left: 10px;
+    width: 34px;
+    height: 34px;
+    z-index: 1000;
+    background: #FFFFFF;
+    border: 2px solid #1e88e5;
+    border-radius: 6px;
+    color: white;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    transition: background-color 0.3s ease;
+}
+
+.ais-visibility-button:hover {
+    opacity: 0.8;
+}
+
+.ais-visibility-button.off {
+    background: #f44336;
+}
+
+/* Styles pour les boutons avec effet hover */
+.close-button {
+    background: #f44336;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.close-button:hover {
+    background: #d32f2f;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
+}
+
+.refresh-button {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.3s ease;
+}
+
+.refresh-button:hover {
+    background: #45a049;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+}
+
+/* Styles pour la table MMSI */
+.mmsi-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    table-layout: fixed;
+}
+
+.mmsi-table th {
+    background: #1e88e5;
+    color: white;
+    border: 1px solid #ddd;
+    padding: 8px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.mmsi-table td {
+    border: 1px solid #ddd;
+    padding: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.mmsi-table tbody tr:hover {
+    background-color: #e3f2fd !important;
+    cursor: pointer;
+}
+
+.mmsi-table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.mmsi-table tbody tr:nth-child(odd) {
+    background-color: white;
+}
+
+/* Styles pour les boutons d'action dans la table */
+.action-button {
+    border: none;
+    padding: 4px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 10px;
+    margin: 1px;
+    transition: all 0.2s ease;
+}
+
+.action-button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.btn-locate {
+    background: #1e88e5;
+    color: white;
+}
+
+.btn-locate:hover {
+    background: #1565c0;
+}
+
+.btn-track {
+    background: #FF9800;
+    color: white;
+}
+
+.btn-track:hover {
+    background: #f57c00;
+}
+
+.btn-info {
+    background: #4CAF50;
+    color: white;
+}
+
+.btn-info:hover {
+    background: #388e3c;
+}
+
+.btn-delete {
+    background: #f44336;
+    color: white;
+}
+
+.btn-delete:hover {
+    background: #d32f2f;
+}
+
+/* Style pour le modal */
+.mmsi-modal-content {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    max-width: 85%;
+    max-height: 90%;
+    overflow: auto;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+/* Style pour le conteneur de défilement horizontal */
+.table-container {
+    overflow-x: auto;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+/* Styles pour les badges de classe */
+.class-badge {
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: bold;
+    text-align: center;
+    color: white;
+}
+
+.class-a {
+    background: #4CAF50;
+}
+
+.class-b {
+    background: #FF9800;
+}
+
+.status-indicator {
+    position: absolute;
+    top: 100px;
+    left: 19px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #333;
+    z-index: 1000;
+    background-color: gray;
+}
+
+.status-indicator.inactive {
+    background-color: gray;
+    animation: none;
+}
+
+.status-indicator.active {
+    background-color: #00FF00; /* Jaune vif */
+    animation: pulse 0.5s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow:
+            0 0 0 0 rgba(255, 0, 0, 1.0),
+            0 0 10px 4px rgba(255, 0, 0, 0.6),
+            0 0 20px 8px rgba(255, 0, 0, 0.3);
+    }
+    50% {
+        box-shadow:
+            0 0 0 15px rgba(255, 0, 0,0.6 ),
+            0 0 15px 6px rgba(255, 0, 0, 0.4),
+            0 0 25px 10px rgba(255, 0, 0, 0.2);
+    }
+    100% {
+        box-shadow:
+            0 0 0 0 rgba(255, 0, 0, 0.2),
+            0 0 10px 4px rgba(255, 0, 0, 0.6),
+            0 0 20px 8px rgba(255, 0, 0, 0.3);
+    }
+}
+
+.arrow-icon div {
+    transition: transform 0.2s ease;
+}
+.arrow-icon {
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 12px solid red;
+    position: relative;
+    transform-origin: center;
+}
+
+/* Style actif */
+#toggle-labels.active {
+  background-color: #00FF00;
+}
+
+#leaflet-credit {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  font-size: 12px;
+  background: rgba(255,255,255,0.5);
+  padding: 5px;
+  border-radius: 4px;
+}
+
+.commentaire {
+  margin-left: 8px;
+  color: #555;
+
+}
+
+@keyframes pulse-enregistrement {
+  0%   { transform: scale(0.7); }
+  50%  { transform: scale(1.1); }
+  100% { transform: scale(0.7); }
+}
+
+.pulse-enregistrement {
+  display: inline-block;
+  animation: pulse-enregistrement 1.5s ease-in-out infinite;
+}
+
+.modal {
+  display: none; /* cachée par défaut */
+  position: absolute; /* relative au conteneur carte */
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.4); /* voile semi-transparent */
+  z-index: 9999; /* au-dessus de la carte */
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  margin: 100px auto;
+  width: 300px;
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.modal-buttons {
+  margin-top: 20px;
+  display: flex;
+  justify-content: space-around;
+}
+
+#mapModal .modal-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#mapModal .modal-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 10px; /* espace entre les boutons */
+  margin-top: 20px;
+}
+
+#mapModal button {
+  flex: 1;              /* chaque bouton prend la même largeur */
+  min-width: 100px;     /* largeur minimale */
+  padding: 10px 20px;   /* hauteur et confort */
+  text-align: center;
+}
+
+.hide-pin .pin-icon {
+    display: none !important;
+}

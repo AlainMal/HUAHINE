@@ -1,0 +1,263 @@
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 20px;
+    background-color: #f0f0f0;
+    padding-top: 60px;
+}
+
+nav {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    background: #1E1A4D;
+    padding: 1rem;
+    z-index: 1000;
+
+}
+
+nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    gap: 20px;
+}
+
+nav a {
+    color: white;
+    text-decoration: none;
+}
+
+nav a:hover {
+    background-color: brown;
+}
+
+
+nav li {
+        margin: 0;
+    }
+
+.content {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    background: white;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.tip {
+    background: #e8f4f8;
+    padding: 15px;
+    border-left: 4px solid #3498db;
+    margin: 15px 0;
+}
+
+.error {
+    background: #FEEBE7;
+    padding: 15px;
+    border-left: 4px solid #F54927;
+    margin: 15px 0;
+}
+
+.help-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    color: #333;
+}
+
+.preview-image {
+    width: 100%;
+    max-height: 400px;
+    object-fit: cover;
+    margin-bottom: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border: 1px solid #e0e0e0;
+}
+
+.main-title {
+    color: #1e88e5;
+    text-align: center;
+    margin-bottom: 40px;
+    font-size: 28px;
+    font-weight: bold;
+    border-bottom: 3px solid #1e88e5;
+    padding-bottom: 15px;
+}
+
+.guide-section {
+    margin-bottom: 35px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 25px;
+    border-left: 4px solid #1e88e5;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.section-title {
+    color: #1e88e5;
+    margin-bottom: 20px;
+    font-size: 22px;
+    font-weight: bold;
+
+}
+
+.subsection {
+    margin-bottom: 20px;
+}
+
+.subsection-title {
+    color: #2c5282;
+    margin-bottom: 10px;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.feature-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.feature-item {
+    background: white;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+}
+
+.config-list, .bullet-list, .nested-list {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.config-list li, .bullet-list li, .nested-list li {
+    margin-bottom: 8px;
+}
+
+.numbered-list {
+    counter-reset: step-counter;
+    list-style: none;
+    padding-left: 0;
+}
+
+.numbered-list li {
+    counter-increment: step-counter;
+    margin-bottom: 15px;
+    padding: 15px;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    position: relative;
+    padding-left: 60px;
+}
+
+.numbered-list li::before {
+    content: counter(step-counter);
+    position: absolute;
+    left: 20px;
+    top: 15px;
+    background: #1e88e5;
+    color: white;
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.action-list {
+    list-style: none;
+    padding-left: 0;
+}
+
+.action-list li {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 10px;
+    background: white;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+}
+
+.action-icon {
+    margin-right: 10px;
+    font-size: 18px;
+}
+
+.conclusion {
+    border-left-color: #4CAF50;
+}
+
+.conclusion-box {
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid transparent;
+    color: #333;
+}
+
+/* Couleur pour les erreurs */
+.conclusion-box.error {
+    background-color: #fdedef;
+    border-color: #f5c2c7;
+    color: #842029;
+}
+
+/* Couleur pour les succès */
+.conclusion-box.success {
+    background-color: #dbece3;
+    border-color: #a6cdbc;
+    color: #0f5132;
+}
+
+/* Couleur pour les infos */
+.conclusion-box.info {
+    background-color: #fcf8cf;
+    border-color: #b6effb;
+    color: #055160;
+}
+.conclusion-box p {
+    margin: 0;
+    font-size: 16px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .help-container {
+        padding: 15px;
+    }
+
+    .main-title {
+        font-size: 24px;
+    }
+
+    .guide-section {
+        padding: 20px;
+    }
+
+    .numbered-list li {
+        padding-left: 50px;
+    }
+
+    .numbered-list li::before {
+        left: 15px;
+        width: 20px;
+        height: 20px;
+        font-size: 12px;
+    }
+}
+
+.aide {
+	color: white;
+}

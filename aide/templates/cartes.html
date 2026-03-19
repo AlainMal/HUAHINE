@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+
+{% block title %}Aide - Voir la carte{% endblock %}
+
+{% block content %}
+<style>
+    nav #carte {
+    background-color: red;
+}
+</style>
+<h1 class="main-title">Visualiser la carte</h1>
+
+<div class="map-preview">
+    <img alt="Aperçu de la carte"
+         src="{{ url_for('aide.static', filename='images/carte-preview.png') }}"
+         style="width: 100%;
+                max-height: 200px;
+                object-fit: cover;
+                margin-bottom: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+</div>
+
+<div class="section">
+    <h2 class="section-title">Comment visualiser les navires sur la carte</h2>
+    <ul class="numbered-list">
+        <li >Vous devez activer la case à cocher "Lancer le NMEA 2000 en temps réel".<br>
+            Et il faut, bien sûr se connecter !
+            <ul >
+                Cliquez sur le bouton "Open", puis cliquez sur le bouton bleu sur la barre d'outils.
+            </ul>
+        </li>
+            <div class="conclusion-box success">
+                <strong>Remarque :</strong> Si vous êtes raccordé sur le bus NMEA 2000,
+                    la carte s'affiche automatiquement au démarrage de l'application,
+                    à condition que le bus soit bien alimenté et qu'il y a au moins un capteur.
+            </div>
+             <div class="conclusion-box error">
+                <strong>Cela ne fonctionne pas :</strong> Aller voir dans l'installation,
+                 vous avez certainement oublié une étape. Sinon regarder sur l'écran principal,
+                 vous avez en rouge, les numéros de trames qui s'affiche ou l'info "pas de trames arrivées",
+                 si vous n'avez aucune info, vérifier votre adaptateur.
+            </div>
+
+        <br>
+        <li >Cliquez sur l'icône en forme de voilier sur la barre d'outils.
+            <ul class="bullet-list">
+                <p>Vous voyez où est votre bateau sur la carte, avec sa projection.</p>
+                <p>Vous pouvez voir l'ensemble des bateaux AIS avec leurs projections.</p>
+                <p>Vous pouvez changer le temps de projection</p>
+                <p>Vous pouvez changer la vue en "Navionic" ou en "SonarChart"</p>
+                <p>Vous avez la possibilité d'enregistrer votre parcours et de le visualiser plus tard</p>
+                <p>Vous avez la possibilité d'enregistrer une route et de la suivre plus tard</p>
+                <p>Vous voyez le vent réel et apparent</p>
+                <p>Vous voyez les instruments disponibles sur NMEA 2000</p>
+                <p>Vous pouvez centrer votre bateau en cliquant sûr 👁️</p>
+                <p>Vous pouvez diminuer ou augmenter le zoom.</p>
+            </ul>
+            </ul>
+        </li>
+
+    </ul>
+
+    <div class="conclusion-box success">
+        <strong>Information :</strong> Vous suivez votre bateau avec un rafraichissement toutes les cinq secondes.<br>
+        En rafraichissement de dix secondes vous avez les AIS avec leurs distances parcourues projetées.
+    </div>
+    <ul>
+                Voyez les menus ci-dessous
+    </ul>
+    <div class="map-preview">
+    <img alt="Aperçu de la carte"
+         src="{{ url_for('aide.static', filename='images/barre_menu.png') }}"
+         style="width: 20%;
+
+                object-fit: contain;
+                margin-bottom: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);" class="grande">
+        <img alt="Historique des parcours"
+         src="{{ url_for('aide.static', filename='images/historique.png') }}"
+         style="width: 70%;
+
+                object-fit: contain;
+                margin-bottom: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);" class="petite">
+    </div>
+    <ul>
+                Voyez la carte ci-dessous
+    </ul>
+<div class="help-container">
+    <!-- Image d'aperçu de la carte -->
+    <div class="map-preview">
+        <img src="{{ url_for('aide.static', filename='images/carte.png') }}"
+             alt="Aperçu de la carte de navigation"
+             class="preview-image">
+    </div>
+
+    <!-- Guide principal -->
+    <div class="guide-content">
+        <h1 class="section-title">🧭 Guide d'utilisation de l'interface de navigation marine</h1>
+
+        <!-- Section Interface principale -->
+        <section class="guide-section">
+            <h2 class="section-title">🗺️ Interface principale</h2>
+            <div class="section-content">
+                <p>La carte de navigation s'affiche au centre de l'écran et constitue votre espace de travail principal pour visualiser votre position et planifier vos parcours.</p>
+            </div>
+        </section>
+
+        <!-- Section Configuration du bateau -->
+        <section class="guide-section">
+            <h2 class="section-title">⚓ Configuration du bateau (bouton ancre)</h2>
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">Configuration :</h3>
+                    <ul class="config-list">
+                        <li>Cliquez sur l'icône ancre pour ouvrir la fenêtre de configuration</li>
+                        <li>Renseignez le nom de votre bateau, son type (voilier, moteur, catamaran)</li>
+                        <li>Définissez les dimensions (longueur, largeur, tirant d'eau)</li>
+                        <li>Indiquez votre vitesse de croisière habituelle</li>
+                        <li>Ajoutez votre numéro MMSI si disponible</li>
+                    </ul>
+                </div>
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <strong>Utilisation :</strong> Ces informations personnalisent l'affichage et améliorent
+                        les calculs de temps de trajet
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Section Menu de configuration -->
+        <section class="guide-section">
+            <h2 class="section-title">📊 Menu d'historique et projection de trajectoire' (bouton courbe)</h2>
+            <div class="section-content">
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <strong>Fonction :</strong> Affiche/masque le panneau de contrôle latéral droit
+                    </div>
+                    <div class="feature-item">
+                        <strong>Utilisation :</strong> Cliquez sur l'icône roue dentée pour faire apparaître ou disparaître le menu de configuration
+                    </div>
+                    <div class="feature-item">
+                        <strong>Contenu :</strong> Accès aux fonctionnalités d'historique, projections et paramètres
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- Section Enregistrement et gestion des parcours -->
+        <section class="guide-section">
+            <h2 class="section-title">📊 Enregistrement et gestion des parcours</h2>
+            <div class="section-content">
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Démarrage d'un enregistrement :</h3>
+                    <ol class="numbered-list">
+                        <li><strong>Réglage de la fréquence :</strong> Configurez l'intervalle de sauvegarde
+                            (par défaut : toutes les 60 secondes). La base de données et réglé pour rafraichir la carte toutes les 12 x 5 secondes.</li>
+                        <li><strong>Début :</strong> Cliquez sur "▶️ Départ" pour commencer l'enregistrement automatique</li>
+                        <li><strong>Suivi en temps réel :</strong> L'interface affiche le nombre de points enregistrés et l'heure de la dernière sauvegarde</li>
+                        <li><strong>Arrêt :</strong> Cliquez sur "🔴 ARRETER ️" pour terminer l'enregistrement</li>
+                    </ol>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Sauvegarde d'un parcours :</h3>
+                    <ul class="bullet-list">
+                        <li>Donnez un nom explicite à votre parcours (ex: "Sortie_Frioul_25_09_2024")</li>
+                        <li>Cliquez sur "💾 Sauver" pour conserver définitivement votre trajet</li>
+                        <li>Le fichier est stocké et peut être rechargé ultérieurement</li>
+                    </ul>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Consultation des parcours :</h3>
+                    <ul class="bullet-list">
+                        <li>Cliquez sur "🌏 Charger" pour ouvrir la liste des parcours sauvegardés</li>
+                        <li>Sélectionnez le parcours à afficher</li>
+                        <li>La trace s'affiche en différentes couleurs en fonction de la vitesse, avec des points cliquables contenant les détails de chaque position.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section Statistiques en temps réel -->
+        <section class="guide-section">
+            <h2 class="section-title">📈 Statistiques en temps réel</h2>
+            <div class="section-content">
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <strong>Distance parcourue :</strong> Calcul automatique en milles nautiques
+                    </div>
+                    <div class="feature-item">
+                        <strong>Vitesse moyenne :</strong> Moyenne calculée sur la durée totale du parcours
+                    </div>
+                    <div class="feature-item">
+                        <strong>Mise à jour :</strong> Statistiques actualisées en continu pendant l'enregistrement
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section Projections de trajectoire -->
+        <section class="guide-section">
+            <h2 class="section-title">🔄 Projections de trajectoire</h2>
+            <div class="section-content">
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <strong>Votre bateau :</strong> Une ligne pointillée bleue montre votre trajectoire projetée
+                    </div>
+                    <div class="feature-item">
+                        <strong>Navires AIS :</strong> Chaque navire affiche sa projection basée sur son cap et sa vitesse actuels
+                    </div>
+                    <div class="feature-item">
+                        <strong>Personnalisation :</strong> Modifiez la durée de projection (de 15 minutes à 24 heures)
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section Outil de mesure de distance -->
+        <section class="guide-section">
+            <h2 class="section-title">📏 Outil de mesure de distance et de route (bouton règle)</h2>
+            <div class="section-content">
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <strong>Activation :</strong> Cliquez sur l'icône de mesure pour activer l'outil<br>
+                        <p>Vous avez la possibilité d'entregister votre route</p>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Premier point ou dernier point :</strong>
+                        <ul class="nested-list">
+                            <li>Si vous cliquez près de votre bateau (moins de 100m), le point s'accroche automatiquement</li>
+                            <li>Le point rouge suit alors les déplacements du bateau en temps réel</li>
+                        </ul>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Points suivants :</strong> Cliquez sur la carte pour ajouter des waypoints
+                    </div>
+                    <div class="feature-item">
+                        <strong>Calculs automatiques :</strong>
+                        <ul class="nested-list">
+                            <li>Distance totale en milles nautiques</li>
+                            <li>Temps estimé basé sur votre vitesse actuelle (si en mouvement) ou votre vitesse de croisière (si à l'arrêt)</li>
+                        </ul>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Masquer les étiquettes de distances :</strong> 🪜 Cliquez sur le deuxième icône
+                        <ul class="nested-list">
+                            <li>Vos étiquettes disparaissent</li>
+                            <li>Réappuyer et vos étiquettes réapparaissent</li>
+                        </ul>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Enregistrer une route :</strong> 💾 Cliquez sur l'icône en forme de disquette
+                        <ul class="nested-list">
+                            <li>Enregister le nom que vous donnez à votre route</li>
+                        </ul>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Charger une route :</strong> 📂 Cliquez sur l'icône en forme de dossier
+                        <ul class="nested-list">
+                            <li>Vous voyez tous les noms de routes, vous cliquez dessus et cliquer sur le bouton "Charger"</li>
+                        </ul>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Désactivation :</strong> 📏 Re-cliquez sur l'outil pour effacer les mesures et les routes
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section d'affichage des distances'-->
+        <section class="guide-section">
+            <h2 class="section-title">🪜 Affichage des distances (bouton en Echelle)</h2>
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">Action disponible :</h3>
+                    <ul class="bullet-list">
+                        <li>Permet de masquer les distances sur chaque segment</li>
+                    </ul>
+                </div>
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <strong>Utilisation :</strong> On peut 'Afficher/Masquer' les distances sur chaque segment
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Section Visualisation des navires AIS -->
+        <section class="guide-section">
+            <h2 class="section-title">🚢 Visualisation des navires AIS (bouton Navire)</h2>
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">Fonction :</h3>
+                    <p>Affiche un tableau complet des navires détectés par AIS dans votre zone</p>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Informations disponibles :</h3>
+                    <ul class="bullet-list">
+                        <li>MMSI, nom du navire, classe AIS (A ou B)</li>
+                        <li>Position GPS précise</li>
+                        <li>Cap et vitesse en temps réel</li>
+                        <li>Longueur et largeur du bateau</li>
+                        <li>Distance par rapport à votre position</li>
+                        <li>Projection de trajectoire</li>
+                    </ul>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">Actions possibles :</h3>
+                    <ul class="action-list">
+                        <li><span class="action-icon">📍</span> Centrer la carte sur un navire spécifique</li>
+                        <li><span class="action-icon">👁️</span> Suivre un navire (suivi automatique)</li>
+                        <li><span class="action-icon">ℹ️</span> Afficher les détails complets</li>
+                        <li><span class="action-icon">🗑️</span> Retirer temporairement de la liste</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section d'affichage des navires sur la carte' -->
+        <section class="guide-section">
+            <h2 class="section-title">📡 Visualisation des navires sur la carte (bouton en forme de radar)</h2>
+            <div class="section-content">
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <strong>Utilisation :</strong> Masque/Affiche les navires AIS sur la carte
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section de visualisation des vents -->
+        <section class="guide-section">
+            <h2 class="section-title">🔗 Visualisation des vents (bouton en forme de vent)</h2>
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">Informations disponibles :</h3>
+                    <ul class="bullet-list">
+                        <li>Les vents réel et apparent</li>
+                        <li>Orientation Tribord et Bâbord amure</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section de visualisation des participants -->
+        <section class="guide-section">
+            <h2 class="section-title">🖥️ Visualisation des instruments (bouton réseau)</h2>
+            <div class="section-content">
+                <div class="subsection">
+                    <h3 class="subsection-title">Informations disponibles :</h3>
+                    <ul class="bullet-list">
+                        <li>Les participants</li>
+                        <li>Leurs adresses</li>
+                        <li>Leurs noms</li>
+                        <li>Leurs numéros de version</li>
+                        <li>Leurs codes de version</li>
+                    </ul>
+                </div>
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <strong>Utilisation :</strong> Représente les instruments disponibles sur NMEA 2000
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+
+        <!-- Section Centrage automatique -->
+        <section class="guide-section">
+            <h2 class="section-title">👀 Centrage automatique (bouton yeux)</h2>
+            <div class="section-content">
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <strong>Fonction :</strong> Recentre instantanément la carte sur votre position actuelle
+                    </div>
+                    <div class="feature-item">
+                        <strong>Utilisation :</strong> Pratique après avoir exploré d'autres zones de la carte
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section touches de fonctions-->
+        <section class="guide-section">
+            <h2 class="section-title">Touches de fonctions</h2>
+            <div class="section-content">
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <strong>Fonctions :</strong><br>
+                        F1 : Affiche l'aide<br>
+                        F2 : Affiche la fenêtre principale<br>
+                        F3 : Affiche la carte sur votre navigateur web standard<br>
+
+                        F9 : Remet à zéro l'historique, !! Attention ça éteint l'application, cette fonction ne sert que pour les développeurs.
+                    </div>
+                    <div class="feature-item">
+                        <strong>Utilisation :</strong> Quand vous êtes sur la cartes, vous permet d'utiliser simplement les touches de fonctions pour naviguer plus facilement.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Conclusion -->
+        <section class="guide-section conclusion">
+            <div class="conclusion-box success">
+                <p><strong>🎯 Résumé :</strong> Cette interface vous offre un contrôle complet de votre navigation
+                    avec enregistrement automatique, outils de mesure précis, surveillance
+                    du trafic maritime environnant, visualisation du vent, visualisation des instruments
+                    et planification de routes optimisées.</p>
+            </div>
+        </section>
+    </div>
+</div>
+
+
+    <h3>Formats supportés</h3>
+    <ul>
+        <li>Cartes .mbtiles</li>
+        <li>
+            <a href="https://download2339.mediafire.com/8qwtdbkzx8zg6zIv5U9U2lmW06od4ohBGNx4cu07pJnh7cK5HQDkUU3tKu1T0UU2dx5leqpkUYpZ6S6CRIBW_0GeYKMAGVJOTvDvVuVEeFfZ0jOZTxp2yDDJbl-LVxYCZiQZhFcnPPLW_-h5lKlI0SYC0hSnkgWdl6fOwpWIu38/rmryx28qd46zpy8/SASPlanet_250505_%5Bsasplanet.geojamal.com%5D.zip">Les
+                cartes sont défini à l'aide SASPlanet</a></li>
+    </ul>
+</div>
+
+<script>
+    // JavaScript spécifique à la page d'import si nécessaire
+    document.addEventListener('DOMContentLoaded', function() {
+        // Votre code JavaScript ici
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+
+    <title>Cartes Navigation</title>
+    <link href="{{ url_for('static', filename='css/leaflet.css') }}" rel="stylesheet"/>
+    <link href="{{ url_for('static', filename='css/mon.css') }}" rel="stylesheet"/>
+    <link href="{{ url_for('static', filename='favicon.ico') }}" rel="icon" type="image/x-icon">
+    <script src="{{ url_for('static', filename='js/leaflet.js') }}"></script>
+
+
+</head>
+<body>
+
+<div id="map"></div>
+<div id="info"></div>
+<div id="leaflet-credit">
+  <span></span>
+  <span class="commentaire">'F1': AIDE - </span>
+  <span></span>
+  <span class="commentaire">'F2': MENU - </span>
+  <span></span>
+  <span class="commentaire">'F3': NOUVEL ONGLET </span>
+</div>
+
+<!-- Fenêtre liste des participants -->
+<div id="f_modal" class="f_modal" style="display:none;">
+  <div class="f_modal-content">
+        <span id="f_close-button" class="f_close-button">× Fermer</span>
+        <span id="f_raf-button" class="f_raf-button">Demander</span>
+        <span id="f_raf-status" class="f_raf-status" style="display:none;">En cours...</span>
+        <h2>️<img src="./static/icone/reseau.png" alt="Configuration" width="22" height="22"> Liste des instruments NMEA 2000</h2>
+        <ul id="f_config-list"></ul>
+  </div>
+</div>
+<!-- Menu sur la gauche -->
+<div class ="button-container">
+    <button class="button" id="mmsiButton" onclick="toggleMMSITable()" title="Afficher la liste des navires AIS détectés">️<img src="./static/icone/bateau.png" alt="Navires MMSI" width="20" height="20"></button>
+    <button class="button" id="aisVisibilityButton" onclick="toggleAISVisibility()" title="Masquer les bateaux AIS sur la carte">️<img src="./static/icone/radar.png" alt="📡" width="20" height="20"></button>
+    <button class="button" id="toggleMenu" title="Afficher la configuration du bateau">️<img src="./static/icone/ancre-de-navire.png" alt="Configuration du bateau" width="16" height="16"></button>
+    <button class="button" id="toggleVent" title="Afficher le cadran de vent">️<img src="./static/icone/wind.png" alt="Vents" width="16" height="16"></button>
+    <button class="button" id="toggleInfoButton" title="Afficher l'historique et les projections">️<img src="./static/icone/courbe.png" alt="Historique" width="16" height="16"></button>
+    <button class="button" id="f_config" title="Afficher la liste des instruments">️<img src="./static/icone/reseau.png" alt="Configuration" width="22" height="22"></button>
+</div>
+
+<-- Bouton centrer sur le bateau -->
+<button class="center-button" onclick="centerOnBoat()" title="Centrer sur le bateau">️<img src="./static/icone/yeux.png" alt="Centrer" width="16" height="16"></button>
+
+<!-- Voyant vous êtes connecté au NMEA 2000 -->
+<div id="status-indicator" class="status-indicator" title="Inactif : Vous n'êtes pas connecté au NMEA 2000"></div>
+
+<-- Affichage des historiques -->
+<div class="legend" style="bottom: 165px;">
+    <!-- En-tête avec icône -->
+    <div class="section-header">
+        <h3 style="margin: 0; text-align: center; color: #1e88e5; font-size: 14px;">
+            <img src="./static/icone/courbe.png" alt="Historique" width="16" height="16">
+                &nbspHISTORIQUE DE NAVIGATION
+        </h3>
+    </div>
+
+    <!-- Section Enregistrement -->
+    <div class="recording-section" style="width: fit-content; margin: 10px auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px; background: #f9f9f9;">
+
+        <div class="recording-controls" style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+            <button onclick="updateSaveInterval()" id="enregistre" class="action-btn start-btn" style="background: #4CAF50; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">
+                ▶️ Départ
+            </button>
+
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <label for="saveInterval"></label><input id="saveInterval" max="60" min="1" step="1" type="number" value="12" style="width: 50px; padding: 4px; border: 1px solid #ccc; border-radius: 3px;">
+                <span id="intervalLabel" style="font-size: 12px; color: #666;"> x 10 sec</span>
+            </div>
+
+        </div>
+
+        <div id="saveIntervalInfo" style="font-size: 11px; color: #555; min-height: 20px; text-align: center; padding: 4px; border-radius: 3px; background: white;">
+        </div>
+    </div>
+
+    <!-- Section Gestion des fichiers -->
+    <div class="file-section" style="border: 1px solid #ddd; border-radius: 5px; padding: 10px; margin: 10px 0; background: #f9f9f9;">
+        <div style="margin-bottom: 8px;">
+            <label for="filenameInput" style="font-size: 12px; font-weight: bold; color: #333;"> <img src="./static/icone/enregistrer.png" alt="Historique" width="16" height="16">
+                    &nbspNom du parcours:
+            </label>
+            <input type="text" id="filenameInput" placeholder="Ex: Frioul_19_9_2025" style="width: 95%; padding: 6px; margin-top: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 12px;">
+        </div>
+
+        <div class="file-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button onclick="saveHistory()" class="action-btn save-btn" style="background: #2196F3; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                <img src="./static/icone/disquette.png" alt="Historique" width="16" height="16">
+                    &nbspSauver
+            </button>
+
+            <button onclick="loadHistory()" class="action-btn load-btn" style="background: #FF9800; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                <img src="./static/icone/oeil.png" alt="Historique" width="16" height="16">
+                    &nbspCharger
+            </button>
+        </div>
+
+        <button id="bouton" onclick="clearTrace()" class="action-btn clear-btn" style="background: #9E9E9E; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 8px; font-size: 11px;">
+            <img src="./static/icone/poubelle.png" alt="Historique" width="16" height="16">
+                &nbspEffacer la trace
+        </button>
+    </div>
+
+    <!-- Section Statistiques -->
+    <div id="trackStats" class="stats-section" style="border: 1px solid #ddd; border-radius: 5px; padding: 10px; margin: 10px 0; background: #f0f8ff;">
+        <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #1e88e5; text-align: center;"><img src="./static/icone/statistique.webp" alt="Historique" width="16" height="16"> STATISTIQUES</h4>
+        <div id="totalDistanceInfo" style="font-size: 11px; color: #333; padding: 2px 0; text-align: center;">Distance: -- NM</div>
+        <div id="averageSpeedInfo" style="font-size: 11px; color: #333; padding: 2px 0; text-align: center;">Vitesse moy.: -- nœuds</div>
+        <div id="totalTimeInfo" style="font-size: 11px; color: #333; padding: 2px 0; text-align: center;">Temps passé: --</div>
+    </div>
+</div>
+<div class="legend">
+    <!-- Section Projection -->
+    <div class="projection-section" style="border: 1px solid #ddd; border-radius: 5px; padding: 10px; margin: 10px 0; background: #f0f8ff;">
+        <div class="section-header">
+            <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #1e88e5; text-align: center;">
+                <img src="./static/icone/projection.png" alt="Historique" width="16" height="16">
+                    PROJECTION DE TRAJECTOIRE
+            </h4>
+        </div>
+
+        <div style="display: flex; justify-content: center; width: 100%;">
+      <div class="projection-controls"
+           style="display: flex; flex-direction: column; gap: 8px; width: fit-content;">
+
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+          <label for="projectionTime"
+                 style="font-size: 11px; font-weight: bold; color: #333; white-space: nowrap;">
+            <img src="./static/icone/minuteur.png" alt="Historique" width="16" height="16">
+            Durée:
+          </label>
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <input id="projectionTime"
+                   type="number"
+                   min="0"
+                   max="1440"
+                   step="15"
+                   value="0"
+                   style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 11px; text-align: center;">
+            <span style="font-size: 10px; color: #666;">min</span>
+          </div>
+        </div>
+
+        <div id="projectionInfo"
+             style="font-size: 10px; color: #555; text-align: center; padding: 4px; background: white; border-radius: 3px; border: 1px solid #e0e0e0;">
+          Projection sur 15 minutes
+        </div>
+
+      </div>
+    </div>
+    </div>
+</div>
+
+<div id="fileModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+    background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+    <div style="background:white; padding:20px; border-radius:8px; min-width:300px; max-width:500px;">
+        <h3 style="margin-top: 0; color: #1e88e5;">
+            <img src="./static/icone/oeil.png" alt="Historique" width="20" height="20">
+            Charger un historique
+        </h3>
+
+        <select id="fileSelector" size="8" style="width:100%; padding:8px; margin:10px 0; border:1px solid #ccc; border-radius:4px;"></select>
+
+        <div style="display:flex; gap:10px; margin-top:15px;">
+            <button onclick="confirmFileSelection()" style="flex:1; background:#4CAF50; color:white; padding:10px; border:none; border-radius:4px; cursor:pointer;">
+                Charger
+            </button>
+            <button onclick="deleteSelectedHistory()" style="background:#f44336; color:white; padding:10px 15px; border:none; border-radius:4px; cursor:pointer;">
+                Supprimer
+            </button>
+            <button onclick="closeFileModal()" style="background:#9E9E9E; color:white; padding:10px 15px; border:none; border-radius:4px; cursor:pointer;">
+                Annuler
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour sélectionner une route -->
+<div id="routeModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 10000;">
+    <div style="background: white; padding: 20px; border-radius: 8px; min-width: 300px; max-width: 500px;">
+        <h3 style="margin-top: 0; color: #1e88e5;">
+            <img src="./static/icone/charger.png" alt="Route" width="20" height="20">
+            Charger une route
+        </h3>
+
+        <select id="routeSelector" size="8" style="width: 100%; padding: 8px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px;">
+            <!-- Les options seront ajoutées dynamiquement -->
+        </select>
+
+        <div style="display: flex; gap: 10px; margin-top: 15px;">
+            <button onclick="confirmRouteSelection()" style="flex: 1; background: #4CAF50; color: white; padding: 10px; border: none; border-radius: 4px; cursor: pointer;">
+                Charger
+            </button>
+            <button onclick="deleteSelectedRoute()" style="background: #f44336; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer;">
+                Supprimer
+            </button>
+            <button onclick="closeRouteModal()" style="background: #9E9E9E; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer;">
+                Annuler
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour afficher le tableau MMSI -->
+<div id="mmsiModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+    background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+    <div class="mmsi-modal-content">
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0; color: #1e88e5;">
+                <img src="./static/icone/bateau.png" alt="Navires" width="20" height="20">
+                &nbsp;Navires AIS Détectés
+            </h3>
+            <button onclick="closeMMSIModal()" class="close-button">
+                ✕ Fermer
+            </button>
+        </div>
+
+        <div id="mmsiStats" style="margin-bottom: 15px; padding: 10px; background: #f0f8ff; border-radius: 4px; text-align: center;">
+            <span id="mmsiCount">0</span> navire(s) détecté(s) -
+            <button onclick="refreshMMSIData()" class="refresh-button">
+                🔄 Actualiser
+            </button>
+            <button onclick="toggleDistanceSort()" class="refresh-button" style="background: #2196F3; margin-left: 5px;">
+                📊 Tri Distance
+            </button>
+        </div>
+
+
+        <div class="table-container">
+            <table id="mmsiTable" class="mmsi-table">
+                <thead>
+                    <tr>
+                        <th style="width: 60px;">MMSI</th>
+                        <th style="width: 100px;">Nom</th>
+                        <th style="width: 50px;">Classe</th>
+                        <th style="width: 80px;">Latitude</th>
+                        <th style="width: 80px;">Longitude</th>
+                        <th style="width: 50px;">COG</th>
+                        <th style="width: 50px;">SOG</th>
+                        <th style="width: 40px;">Longueur</th>
+                        <th style="width: 40px;">Largeur</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; width: 50px; position: relative;">
+                            Distance
+                            <span style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 8px; color: #ffeb3b;">
+                                ▲
+                            </span>
+                        </th>
+
+                        <th style="width: 80px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="mmsiTableBody">
+                    <!-- Le contenu sera généré par JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+<script src="{{ url_for('static', filename='js/mon.js') }}"></script>
+<script src="{{ url_for('static', filename='js/Fenetre1.js') }}"></script>
+
+<!-- Fenêtre modale pose la question personnalisée -->
+<div id="mapModal" class="modal">
+  <div class="modal-content">
+    <h2 id="modal-title">Titre</h2>
+    <p id="modal-message">Message</p>
+    <div class="modal-buttons">
+      <button id="modal-ok">OUI</button>
+      <button id="modal-cancel">NON</button>
+    </div>
+  </div>
+</div>
+<script>
+
+  (function(){
+    function dispatchAngleMode(enabled){
+      try {
+        window.dispatchEvent(new CustomEvent('angle90change', { detail: { enabled } }));
+      } catch(e) { console.warn('angle90change event error', e); }
+    }
+    function initAngleToggle(){
+      const el = document.getElementById('angle90Toggle');
+      if (!el) return;
+      const saved = localStorage.getItem('angle90');
+      const enabled = saved === '1';
+      el.checked = enabled;
+      el.addEventListener('change', function(){
+        const on = !!this.checked;
+        localStorage.setItem('angle90', on ? '1' : '0');
+        dispatchAngleMode(on);
+      });
+      // Dispatch initial state for listeners
+      setTimeout(function(){ dispatchAngleMode(enabled); }, 0);
+    }
+    if (document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', initAngleToggle);
+    } else {
+      initAngleToggle();
+    }
+  })();
+</script>
+</body>
+</html>

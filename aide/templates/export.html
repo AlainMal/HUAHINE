@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Aide - Exporter{% endblock %}
+
+{% block content %}
+<style>
+    nav #export {
+    background-color: red;
+}
+</style>
+<h1 class="main-title">Exporter les données au format NMEA 2000</h1>
+
+<div class="section">
+    <h2 class="section-title">Comment exporter le NMEA 2000</h2>
+    <ol class="numbered-list">
+        <li>Cliquez sur le bouton "CSV" dans la barre d'outils.
+            <ul>
+                <p>Choisissez ou créez un fichier .csv.</p>
+                <p>Cliquer sur 'Enregistrer'.</p>
+            </ul>
+        <li>Vous avez la possibilité de valider, ou de choisir les numéros des lignes à exporter.<br></li>
+
+        <li>Vous avez à présent la possibilité de visualiser le fichier CSV en NMEA 2000.<br>
+            <ul>
+
+            </ul>
+        </li>
+
+    </ol>
+
+    <div class="conclusion-box success">
+        <strong>Information :</strong> Vous verrez sur le fichier .csv les différentes valeurs des PGN sur chaque
+        ligne.
+    </div>
+
+    <ul>
+        <li>Voyez un exemple du fichier .csv.</li>
+    </ul>
+
+
+    <div class="map-preview">
+        <img src="{{ url_for('aide.static', filename='images/CSV.png') }}"
+             alt="Aperçu de la carte"
+             style="width: 100%;
+                max-height: 600px;
+                object-fit: cover;
+                margin: 0 auto 20px auto;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                display: block;">
+    </div>
+
+    <div class="conclusion-box error">
+        <strong>Erreur :</strong> Si vous avez des "PGN inconnu sur cette version", faites-moi passer vos fichiers .txt et .csv, que j’essaierai de corriger.
+    </div>
+
+    <h3>Formats supportés</h3>
+    <ul>
+        <li>Fichiers .csv</li>
+    </ul>
+</div>
+
+<script>
+    // JavaScript spécifique à la page d'import si nécessaire
+    document.addEventListener('DOMContentLoaded', function() {
+        // Votre code JavaScript ici
+    });
+</script>
+{% endblock %}

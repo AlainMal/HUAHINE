@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+
+{% block title %}Aide - Installation{% endblock %}
+
+{% block content %}
+<style>
+    nav #install {
+    background-color: red;
+}
+</style>
+<h1 class="main-title">Installer l'application</h1>
+
+<div class="section">
+    <h2 class="section-title">Comment installer l'application sur le réseau NMEA 2000.</h2>
+    <ol class="numbered-list">
+        <li>Il faut acheter le <a href="https://www.canusb.com/products/canusb/" target ="_blank">CANUSB de Lawicel.</a>
+            <ul>
+
+            </ul>
+        </li>
+        <li>Il faut simplement récupérer le répertoire "HUAHINE".
+            <ul>
+                Il n'y a pas d'installation à faire.<br>
+                Il faut exécuter le fichier "HUAHINE.exe" dans le répertoire "HUAHINE".<br><br>
+
+            </ul>
+        </li>
+
+        <li>Il faut installer le CANUSB.
+            <ul>
+                <p>Récupérez le driver <a href="https://ftdichip.com/wp-content/uploads/2025/03/CDM2123620_Setup.zip">"D2XX"</a>. </p>
+                <p>Exécutez le CDM2123620_Setup.exe, situé dans le fichier importé.<br></p>
+                <p>Je vous recommande de récupérer la dll <a href="https://www.canusb.com/files/canusb_dll_driver.zip">"canusbdrv64.dll"</a> situé sur ce téléchargement.
+                    Car il y a un problème sur 'canusb_Status' qui fait tout planter sur la "canusbdrv64.dll" fournit avec le setup du CANUSB;
+                    Donc, il faut copier le fichier "canusbdrv64.dll" dans le répertoire C:/Windows/system32/.</p>
+                <p>Avant le premier démarrage, branchez l'adaptateur, car il installe le driver USB, sinon vous aurez une erreur sur le "canusbdrv64.dll", qui sera introuvable.</p>
+
+            </ul>
+            <div class="conclusion-box success">
+                <strong>Remarque :</strong> Vous avez les 'Drivers' qui sont sur GitHub.
+            </div>
+        </li>
+        <br>.
+        <li>Il faut se procurer les cartes
+            <ul>
+                <p>Ces cartes sont trop importantes pour les mettre sur GitHub, car elles font environs 10Go.
+                    Moi j'utilise <a href="https://download2339.mediafire.com/8qwtdbkzx8zg6zIv5U9U2lmW06od4ohBGNx4cu07pJnh7cK5HQDkUU3tKu1T0UU2dx5leqpkUYpZ6S6CRIBW_0GeYKMAGVJOTvDvVuVEeFfZ0jOZTxp2yDDJbl-LVxYCZiQZhFcnPPLW_-h5lKlI0SYC0hSnkgWdl6fOwpWIu38/rmryx28qd46zpy8/SASPlanet_250505_%5Bsasplanet.geojamal.com%5D.zip" target ="_blank">
+                    SASPlanet</a> au format .mbtiles (SQLite 3)
+                    et je n'utilise pas la projection XYZ,
+                    Cette application 'SASPlanet' est assez simple et vous avez des explications sur <a href="https://www.bing.com/videos/riverview/relatedvideo?&q=cartes+marine+SASPlanet&&mid=7817B6074EA659D9CA337817B6074EA659D9CA33&mmscn=mtsc&aps=280&FORM=VRDGAR" target ="_blank">
+                    YouTube</a>,
+                    Les noms des cartes sont les suivants : cartes1.mbtiles, cartes2.mbtiles et cartes3.mbtiles,
+                    elles se mettent dans le répertoire 'static',
+                    j'utilise les zooms de 3 à 10 pour avoir la terre entière et de 10 à 19 pour plus de détails,
+                    remarque : Les zooms sont décalés de +1 par rapport à ceux de SQLite.
+                </p>
+            </ul>
+            <div class="conclusion-box success">
+                <strong>Remarque :</strong> Vous avez une carte sur Marseille et ses environs minimalistes,
+                dans le repertoire 'static', le fichier cartes1.mbtiles.
+            </div>
+        </li>
+        <li>Il faut se raccorder sur le bus NMEA 2000.
+            <ul>
+                <p>Vous n'avez qu'à brancher les bornes CAN_H et CAN_L sur les pins 4 et 5 du NMEA2000.</p>
+            </ul>
+        </li>
+            <br>
+            <div class="map-preview">
+                <img src="{{ url_for('aide.static', filename='images/cia102.gif') }}"
+                     alt="Aperçu de la carte"
+                     style="width: 50%;
+                max-height: 600px;
+                object-fit: cover;
+                margin: 0 auto 20px auto;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                display: block;">
+            </div>
+            <div class="map-preview">
+                <img src="{{ url_for('aide.static', filename='images/canusb-con-diagram.png') }}"
+                     alt="Aperçu de la carte"
+                     style="width: 100%;
+                max-height: 600px;
+                object-fit: cover;
+                margin: 0 auto 20px auto;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                display: block;">
+            </div>
+    </ol>
+    <br>
+        <div class="conclusion-box success">
+            <strong>Remarque :</strong> Si vous êtes branché à la place de la terminaison, il faut ajouter une resistance de 120 ohms.
+        </div>
+        <br>
+
+        <div class="map-preview">
+            <ul>
+                <img src="{{ url_for('aide.static', filename='images/PriseNMEA2000.png') }}"
+                     alt="Aperçu de la carte"
+                     style="width: 15%;
+                max-height: 600px;
+                object-fit: cover;
+                margin: 0 auto 20px auto;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                display: block;">
+                <div class="map-preview">
+                    <img src="{{ url_for('aide.static', filename='images/BorneNMEA2000.png') }}"
+                         alt="Aperçu de la carte"
+                         style="width: 90%;
+                max-height: 600px;
+                object-fit: cover;
+                margin: 0 auto 20px auto;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                display: block;">
+                </div>
+
+            <li>Maintenant, vous avez tout raccordé et mis vos drivers dans votre PC.
+                <ul>
+                    <li>Mettez en route votre réseau NMEA 2000.</li>
+                    <li>Utilisez l'application, HUAHINE.exe<br/></li>
+                </ul>
+            </li>
+            </ul>
+        </div>
+
+</div>
+    <div class="conclusion-box success">
+        <strong>Remarque d'ordre générale :</strong> Cette application est un projet personnel,
+        elle évolue en permanence. Je me suis fait aider des AI, pour le JavaScript, le Python et le CSS,
+        certaine sont gratuites, mais les payantes sont excellentes. D'autre part je suis partie depuis le USBCAN dont
+        j'ai traduit les codes pour les transformer en
+        NMEA 2000, à l'aide de <a href="https://canboat.github.io/canboat/canboat.html" target="_blank"> 'CANBoat'</a>
+        , je n'ai pas tous convertit,
+        mais j'ai tout ce qu'il y a sur mon bateau, j'ai réalisé les cartes maritimes à l'aide de
+        <a href="https://sasplanet.geojamal.com/search/label/Download" target ="_blank">'SASPlanet'</a> sous <a href="https://leafletjs.com/" target ="_blank">'Leaflet'</a> sur
+        lesquels j'ai mis mon bateau et les autres sous AIS avec une projection en minutes, j'ai installé le suivi
+        de mon bateau en temps réel que j'enregistre et peut revoir mes parcours, j'ai aussi installé les routes
+        que je peux charger pour plus tard, j'ai aussi installé un écran du vent qui me donne la direction et la force
+        du vent en réel et apparent, j'ai aussi installé la liste des instruments NMEA 2000 qui est un gadget qui
+        permet de voir tous les instruments connectés.<br>
+        Je n'ai pas suivi le programme standard, car j'avais dèjà réaliser un programme sous Excel, j'avais déjà pensé
+        à utiliser une trame de 64 bits, mais il était impossible de le faire en VBA et je comprends mieux maintenant
+        le PyThon et j'aurais du l'exploité au mieux en
+        utilisant des trames de 64 bits. J'ai remarqué que les octets de numéro de trames ne sont pas décrit dans 'CANBoat',
+        et cela me posait des problèmes pour savoir sur quel octet on est censé être. J'ai découvert <a href="https://github.com/tomer-w/nmea2000" target ="_blank">'tomer-w'</a> qui est excellent
+        sur GitHub, mais je ne suis pas fort en PyThon et je n'ai pas encore compris comment il fait pour compter les bits
+        en laissant les numéros de trames de côté, peut-être en prenant les 6 octets pour la trame 0 et les 7 octets pour les autres de poids fort, simplement sur les
+        trames qui ont plus de 8 octets (fast-packet PGN) et je pense qu'il prend toutes les trames d'un même PGN et aprés qu'il lance le décodage de tous les bits,
+        moi, je décode trame par trame et je fais une mise en mémoire pour les trames dont les codes se situent sur
+        plusieurs trames.<br>
+
+    </div>
+    <div class="conclusion-box info">
+        <strong>Remarque sur Python:</strong> Je n'utilise pas les commandes en ASCII, mais avec les fonctions dll.
+    </div>
+
+    <h3>Exemple du programme pour utiliser les fonctions dll sur CANUSB</h3>
+
+    <pre> <code class="python">
+import ctypes
+from Package.Constante import *
+from ctypes import Structure, c_ubyte,c_long, c_int, POINTER, Array
+
+class CanData(Array):
+    _type_ = c_ubyte
+    _length_ = 8
+
+class CanMsg(Structure):
+    _fields_ = (
+        ("ID", c_long),
+        ("TimeStamp", c_long),
+        ("flags", c_ubyte),
+        ("len", c_ubyte),
+        ("data", CanData)
+    )
+
+# Erreur sur les fonctions de la dll.
+class CanError(Exception):
+    pass
+
+# ================================================== Classe Interface dll ==============================================
+class CANDll:
+    def __init__(self, stop_flag):
+        self._etat = None
+        self._msg = None
+        self._stop_flag = stop_flag
+
+        # Charger la DLL
+        try:
+            self._dll = ctypes.WinDLL("canusbdrv64.dll")
+        except (OSError, FileNotFoundError) as err:
+            print("Erreur DLL:", err)
+            raise CanError
+
+        # =============== DEFINITION DES FONCTIONS INTERFACE DLL ======================
+        #
+        # Fonction OPEN
+        self._dll.canusb_Open.restype = c_long  # Type de retour : entier long
+        # Fonction CLOSE
+        self._dll.canusb_Close.argtypes = [c_long]
+        # Fonction READ
+        self._dll.canusb_Read.argtypes = [c_long, POINTER(CanMsg)]
+        self._dll.canusb_Read.restype = c_int
+        # Fonction STATUS
+        self._dll.canusb_Status.restype = c_int
+        # Fonction FLUSH
+        self._dll.canusb_Flush.restype = c_int
+        self._dll.canusb_Flush.argtypes = [c_long,c_long]
+        # Fonction SEND
+        self._dll.canusb_Write.restype = c_int
+        self._dll.canusb_Write.argtypes = [c_long, POINTER(CanMsg)]
+        # Il y en a d'autres, mais pour l'instant ne sont pas utiles
+
+        self._handle = None
+
+    # Méthode d'ouverture de l'adaptateur. Cette fonction est appelé par le bouton "OPEN".------------------------------
+    def open(self, bitrate, acceptance_code, acceptance_mask, flags):
+        # Ouvre l'adaptateur et retourne son instance.
+        self._handle = self._dll.canusb_Open(None, bitrate, acceptance_code, acceptance_mask, flags)
+        if self._handle is None:
+            raise CanError("Erreur ouverture canal CAN")
+        else:
+            return self._handle     # Retourne le handle dont on a besoin pour savoir si c'est ouvert
+
+    # Méthode de lecture des trames du bus CAN en synchrone.-------------------------------------------------------------
+    def read_dll(self, stop_flag) -> CanMsg:       # Retourne un pointeur sur le CanMsg
+        if self._handle is None:
+           raise CanError("Channel not open")
+
+        self._msg = CanMsg()     # Défini le format
+
+        # Boucle pour attendre les trames CAN.
+        while not stop_flag:
+            if self._handle is None:
+                self._handle = 0    # Marquer le handle en entier comme inactif
+
+            if stop_flag:
+                return self._msg
+
+            result = self._dll.canusb_Read( self._handle,ctypes.byref(self._msg))
+
+            # Résultat du CAN : on sort si une trame a été reçue : result == 1.
+            # Sinon il a des valeurs négatives qui représente différent défaut,
+            # dont le -7 qui indique qu'il n'a pas reçu de trames.
+            if result <= -2 and result != -7:
+                # On ne traite pas les défauts, mais on le signale.
+                print("Défaut CAN : ", str(result))
+                # Affiche la fenêtre Status
+                # main_window.on_click_status()
+
+            if result == 1: # C'est qu'on a reçu un msg.
+                break
+
+        # Une fois une trame reçue, on la retourne
+        return self._msg  # Retourne le CanMsg dont on aura besoin pour l'enregistrer
+
+    # Méthode de fermeture de l'adaptateur. ----------------------------------------------------------------------------
+    def close(self):
+        if self._handle is not None:
+            self._dll.canusb_Flush(self._handle, FLUSH_WAIT)
+            self._dll.canusb_Close(self._handle)
+            self._handle = None
+
+    # Méthode de lecture du status de l'adaptateur. --------------------------------------------------------------------
+    def status(self):
+        self._etat = self._dll.canusb_Status(self._handle)
+        return self._etat
+
+    # Méthode d'écriture des trames du bus CAN en asynchrone. -----------------------------------------------------------
+    # On n'envoie que la trame de demande PGN 59904 sur le PGN 126996, pour qu'ils nous répondent
+    async def send_dll(self, dest):
+        print("self._handle HANDLE =", self._handle)
+        if self._handle is None or self._handle <= 0:
+            print("CAN ERROR Channel not open")
+            raise CanError("Channel not open")
+
+        # Si on veut uniquement récupérer la liste des participants détectés
+        if dest is None:
+            if hasattr(self, "_nmea") and self._nmea is not None and hasattr(self._nmea, "get_participants"):
+                participants = self._nmea.get_participants()
+                print(f"Participants détectés: {participants}")
+                return participants
+            else:
+                print("Aucune référence NMEA2000 disponible pour récupérer les participants")
+                return []
+
+        # Préparer l'envoi d'une requête PGN 126996 à une ou plusieurs destinations
+        async def _send_to(one_dest:int) -> bool:
+            # Construire correctement le message CAN
+            msg = CanMsg()
+            # ID étendu: PGN 59904 (0xEA00), priorité 6, source arbitraire, dest = 0x01 -> 0x18EA01EF par exemple
+            msg.ID = 0x18EA00EF | (int(one_dest) << 8)
+            msg.flags = CAN_EXTENDED
+            msg.len = 3
+            # Demande de PGN 126996 (Configuration informations)
+            msg.data[0] = 0x14
+            msg.data[1] = 0xF0
+            msg.data[2] = 0x01
+            # Remplir le reste à 0 par prudence
+            for i in range(3, 8):
+                msg.data[i] = 0x00
+            # Envoyer
+            # Appel C déporté dans un thread
+            args = (self._handle, ctypes.byref(msg))
+            res_local = await asyncio.to_thread(self._dll.canusb_Write, *args)
+
+            # res_local = self._dll.canusb_Write(self._handle, ctypes.byref(msg))
+            print("RÉSULTAT = ", res_local, " pour dest ", one_dest)
+            if res_local <= 0:
+                print(f"canusb_Write return code: {res_local}")
+                raise CanError(f"Erreur écriture CAN: {res_local}")
+            return True
+
+        # Si on demande l'envoi à tous les participants détectés
+        if dest == 'all' or (isinstance(dest, int) and dest < 0):
+            if hasattr(self, "_nmea") and self._nmea is not None and hasattr(self._nmea, "get_participants"):
+                participants = await self._nmea.get_participants()
+                if not participants:
+                    print("Aucun participant détecté à qui envoyer")
+                    return False
+                results = []
+                for d in participants:
+                    try:
+                        results.append(await _send_to(d))
+                        # Pause pour éviter de saturer le FIFO de transmission
+                        await asyncio.sleep(0.2)
+                    except Exception as e:
+                        print(f"Erreur d'envoi à {d}: {e}")
+                        # Même en cas d'erreur, temporiser un peu avant de poursuivre
+                        await asyncio.sleep(0.2)
+                return all(results) if results else False
+            else:
+                print("Référence NMEA2000 manquante: envoi à tous impossible")
+                return False
+
+        # Sinon, envoi à une destination unique
+        return await _send_to(dest)
+ # ==================================== FIN DE LA CLASSE CANDll ========================================================
+    </code> </pre>
+
+<script>
+    // JavaScript spécifique à la page d'import si nécessaire
+    document.addEventListener('DOMContentLoaded', function() {
+        // Votre code JavaScript ici
+    });
+</script>
+{% endblock %}

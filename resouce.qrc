@@ -1,0 +1,32 @@
+<RCC>
+  <qresource prefix="icones">
+    <file>icones/aides.png</file>
+    <file>icones/regate.jpg</file>
+    <file>icones/regate.jpg</file>
+    <file>icones/bateau-a-voile.ico</file>
+    <file>icones/CloseMal.gif</file>
+    <file>icones/csv.png</file>
+    <file>icones/Lire.png</file>
+    <file>icones/OpenMal.gif</file>
+    <file>icones/Ouvir.gif</file>
+    <file>icones/photo_voilier.png</file>
+    <file>icones/Quitter.png</file>
+    <file>icones/Reading.png</file>
+    <file>icones/sortie.png</file>
+    <file>icones/Status.png</file>
+    <file>icones/STOP.gif</file>
+    <file>icones/Table.ico</file>
+    <file>icones/Talk.gif</file>
+    <file>icones/VoilierImage.png</file>
+    <file>icones/Voir.png</file>
+  </qresource>
+  <qresource prefix="images">
+    <file>images/Image3.png</file>
+    <file>images/regate.jpg</file>
+    <file>images/Spi.png</file>
+    <file>images/vloiersureau.jpg</file>
+    <file>images/VoilierImage.png</file>
+    <file>images/VoilierImage2.png</file>
+    <file>images/VoilierImage3.png</file>
+  </qresource>
+</RCC>

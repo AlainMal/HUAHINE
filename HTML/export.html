@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<!--suppress ALL -->
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Aide - Exporter</title>
+    <link rel="stylesheet" href="static/css/style.css">
+
+    <link href="static/favicon.ico" rel="icon" type="image/x-icon">
+
+</head>
+<body>
+    <nav>
+        <ul>
+            <li><img src = "static/images/VoilierImage.png" width="25" height="25" </li>
+            <li><a id="accueil" href="index.html">Accueil</a></li>
+            <li><a id="install" href="install.html">Installation</a></li>
+            <li><a id="enregistre" href="enregistre.html">Enregistrement</a></li>
+            <li><a id="import" href="import.html">Import</a></li>
+            <li><a id="export" href="export.html">Export</a></li>
+            <li><a id="carte" href="cartes.html">Carte</a></li>
+        </ul>
+    </nav>
+
+    <div class="content">
+        
+<style>
+    nav #export {
+    background-color: red;
+}
+</style>
+<h1 class="main-title">Exporter les données au format NMEA 2000</h1>
+
+<div class="section">
+    <h2 class="section-title">Comment exporter le NMEA 2000</h2>
+    <ol class="numbered-list">
+        <li>Cliquez sur le bouton "CSV" dans la barre d'outils.
+            <ul>
+                <p>Choisissez ou créez un fichier .csv.</p>
+                <p>Cliquer sur 'Enregistrer'.</p>
+            </ul>
+        <li>Vous avez la possibilité de valider, ou de choisir les numéros des lignes à exporter.<br></li>
+
+        <li>Vous avez à présent la possibilité de visualiser le fichier CSV en NMEA 2000.<br>
+            <ul>
+
+            </ul>
+        </li>
+
+    </ol>
+
+    <div class="conclusion-box info">
+        <strong>Information :</strong> Vous verrez sur le fichier .csv les différentes valeurs des PGN sur chaque
+        ligne.
+    </div>
+
+    <ul>
+        <li>Voyez un exemple du fichier .csv.</li>
+    </ul>
+
+
+    <div class="map-preview">
+        <img src="{{ url_for('static', filename='images/CSV.png') }}"
+             alt="Aperçu de la carte"
+             style="width: 100%;
+                max-height: 600px;
+                object-fit: cover;
+                margin: 0 auto 20px auto;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                display: block;">
+    </div>
+
+    <div class="conclusion-box error">
+        <strong>Erreur :</strong> Si vous avez des "PGN inconnu sur cette version", faites-moi passer votre fichier .txt ou .csv, que j’essaierai de corriger.
+    </div>
+
+    <h3>Formats supportés</h3>
+    <ul>
+        <li>Fichiers .csv</li>
+    </ul>
+</div>
+
+<script>
+    // JavaScript spécifique à la page d'import si nécessaire
+    document.addEventListener('DOMContentLoaded', function() {
+        // Votre code JavaScript ici
+    });
+</script>
+</body>
+</html>

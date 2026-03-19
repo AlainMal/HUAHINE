@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<!--suppress ALL -->
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Aide - Enregistrer</title>
+    <link rel="stylesheet" href="static/css/style.css">
+
+    <link href="static/favicon.ico" rel="icon" type="image/x-icon">
+
+</head>
+<body>
+    <nav>
+        <ul>
+            <li><img src = "static/images/VoilierImage.png" width="25" height="25" </li>
+            <li><a id="accueil" href="index.html">Accueil</a></li>
+            <li><a id="install" href="install.html">Installation</a></li>
+            <li><a id="enregistre" href="enregistre.html">Enregistrement</a></li>
+            <li><a id="import" href="import.html">Import</a></li>
+            <li><a id="export" href="export.html">Export</a></li>
+            <li><a id="carte" href="cartes.html">Carte</a></li>
+        </ul>
+    </nav>
+
+    <div class="content">
+        
+<style>
+    nav #enregistre {
+    background-color: red;
+}
+</style>
+<h1 class="main-title">Enregistrer les données du bus CAN</h1>
+
+<div class="section">
+    <h2 class="section-title">Comment enregistrer les données du bus CAN</h2>
+    <ol class="numbered-list">
+        <li>Cliquez sur "Ouvrir un fichier texte" dans la barre d'outils.
+            <ul>
+                <p>Entrez le nom du fichier .txt.</p>
+                <p>Cliquer sur 'Enregistrer'.<br></p>
+            </ul>
+        </li>
+
+        <li>Cochez la case à cocher "Enregister le bus CAN sur le fichier".</li>
+        <li>Cliquez sur le bouton marqué "Open" dans la barre d'outils.</li>
+        <li>Cliquez sur le bouton de lecture <img src="{{ url_for('static', filename='images/Talk.ico') }}" height="20"> dans la barre d'outils.
+            <ul>
+                <p>Vous voyez le nombre de trames enregistrées sur l'écran</p>
+            </ul>
+        </li>
+        <li>Vous arrêtez quand vous voulez.<br></li>
+        <li>Cliquez sur bouton en forme de livre sur la barre d'outils pour visualiser le fichier</li>
+    </ol>
+    <br>
+    <div class="conclusion-box error" style ="border: 1px solid #FFC0CB;">
+        <strong>Erreur :</strong> Si le bouton de lecture réapparait, c'est que vous n'avez pas de trame, vérifiez que
+        vous êtes bien raccordé au bus NMEA 2000 et que celui-ci est bien alimenté et qu'il y a au moins un instrument
+        de raccordé.
+    </div>
+    <ul>
+        <li>Regardez un exemple du fichier rempli.</li>
+
+        <li>Vous voyez le TimeStamp en ms, l'ID, la longueur et les datas.<br></li>
+    </ul>
+    <div class="map-preview">
+        <img src="{{ url_for('static', filename='images/fichier.png') }}"
+             alt="Fichier: fichier.png"
+             style="width: 50%;
+                max-height: 600px;
+                object-fit: cover;
+                margin: 0 auto 20px auto;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                display: block;">
+    </div>
+
+    <h3>Formats supportés</h3>
+    <ul>
+        <li>Fichiers .txt</li>
+    </ul>
+</div>
+
+<script>
+    // JavaScript spécifique à la page d'import si nécessaire
+    document.addEventListener('DOMContentLoaded', function() {
+        // Votre code JavaScript ici
+    });
+</script>
+</body>
+</html>
