@@ -425,26 +425,7 @@ class CANApplication(QMainWindow):
             if result == QMessageBox.Ok:
                 print("OK cliqué → l'application continue")
             elif msg.clickedButton() == btnFermer:
-                # Deuxième message avec Oui / Non
-                warning = QMessageBox()
-                warning.setIcon(QMessageBox.Warning)
-                warning.setWindowIcon(QIcon("VoilierImage.ico"))
-                pix = QPixmap("VoilierImage.ico")
-                warning.setIconPixmap(pix)
-                warning.setWindowTitle("Attention")
-                warning.setText("Voulez vous arrêter l'application ?")
-
-                warning.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-                warning.button(QMessageBox.Yes).setText("Oui")
-                warning.button(QMessageBox.No).setText("Non")
-
-                choix = warning.exec_()
-
-                if choix == QMessageBox.Yes:
-                    print("Oui → fermeture de l'application")
-                    sys.exit(0)
-                else:
-                    print("Non → l'application continue")
+                sys.exit(0)
 
         self.unsetCursor()
         return self._handle
