@@ -52,7 +52,7 @@ li:nth-child(even) {
 }
 .f_raf-button {
     position: absolute;
-    right: 130px;
+    right:20px;
     background: #5Fa049;
     color: white;
     border: none;
@@ -442,6 +442,10 @@ strong {
 /* Effet lors du clic sur le menu */
 .toggle-menu:active {
     transform: translateY(-50%) scale(0.95);
+}
+
+#f_config.active{
+    background-color: #00FF00;
 }
 
 /* ===== BOUTONS D'INFORMATION ===== */

@@ -33,6 +33,7 @@ const AppState = {
     forceKeepOpen: false,
     IsVentVisible: true,
     IsConnected: false,
+    IsIntervenantVisible: false,
 
     // Enregistrement et suivi
     projectionHours: CONFIG.UPDATES.defaultProjection,
@@ -507,7 +508,7 @@ const toggleAISVisibility = () => {
         button.style.background = '#f44336'; // Rouge
 
         button.title = 'Afficher les bateaux AIS sur la carte';
-        showMessage('Bateaux AIS masqués.', 'info');
+        showMessage('Bateaux AIS masqués.', 'error');
         console.log("🔴 Marqueurs AIS masqués");
     } else {
         // Afficher tous les marqueurs et lignes AIS
@@ -516,6 +517,7 @@ const toggleAISVisibility = () => {
         button.style.background = '#FFFFFF'; // Vert
 
         button.title = 'Masquer les bateaux AIS sur la carte';
+        showMessage('Bateaux AIS Affichés.', 'info');
         console.log("🟢 Marqueurs AIS affichés");
     }
 };
@@ -634,7 +636,7 @@ const updateAISMarker = (ship) => {
 
       // MMSI commençant par 2 à 7
       if (['2','3','4','5','6','7'].includes(first)) {
-        return classe === 'A' ? '#0000FF' : '#FF0000'; // bleu (A) ou rouge (B)
+        return classe === 'A' ? '#FF0000' : '#0000FF'; // bleu (A) ou rouge (B)
       }
 
       // Par défaut
@@ -680,7 +682,7 @@ const updateAISMarker = (ship) => {
         AppData.sogLines[ship.mmsi] = L.polyline(
             [[lat, lon], [endLat, endLon]],
             {
-                color: '#1e88e5',
+                color: '#FF0000',
                 weight: 2,
                 opacity: 0.8,
                 dashArray: '5, 5'
@@ -937,7 +939,7 @@ const formatDistanceWithIcon = (distance) => {
     const value = parseFloat(match[1]);
 
     if (value < 1) return `🔴 ${distance}`;      // Rouge-très proche
-    if (value < 3) return `🟠 ${distance}`;      // Orange-proche
+    if (value < 3) return `$ffff00 {distance}`;      // Orange-proche
     if (value < 10) return `🟢 ${distance}`;     // Vert-distance modérée
     return `🔵 ${distance}`;                     // Bleu-loin
 };
@@ -1071,7 +1073,7 @@ window.showShipDetails = (mmsi) => {
                         <div><strong>MMSI:</strong> <span style="font-family: monospace;">${ship.mmsi}</span></div>
                         <div><strong>Nom:</strong> ${ship.name || 'Non disponible'}</div>
                         <div><strong>Classe AIS:</strong> 
-                            <span style="background: ${ship.classe === 'A' ? '#0000FF' : '#FF0000'}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">
+                            <span style="background: ${ship.classe === 'A' ? '#FF0000' : '#0000FF'}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px;">
                                 ${ship.classe}
                             </span>
                         </div>
@@ -4200,7 +4202,18 @@ let configInterval = null;
 
 
 document.getElementById('f_config').addEventListener('click', async () => {
-  await loadConfig();
+  event.currentTarget.classList.toggle('active');
+  AppState.IsIntervenantVisible = !AppState.IsIntervenantVisible;
+  if (!AppState.IsIntervenantVisible) {
+        document.getElementById('f_modal').style.display = 'none';
+      // Stopper le rafraîchissement automatique
+      if (configInterval) {
+        clearInterval(configInterval);
+        configInterval = null;
+      }
+      return;
+  }
+    await loadConfig();
 
   // Faire cette opération toutes les 20 secondes
   document.getElementById('f_modal').style.display = 'flex';
@@ -4209,17 +4222,11 @@ document.getElementById('f_config').addEventListener('click', async () => {
     await loadConfig();
   }, 20000);
 
-});
 
-document.getElementById('f_close-button').addEventListener('click', () => {
-  document.getElementById('f_modal').style.display = 'none';
-  // Stopper le rafraîchissement automatique
-  if (configInterval) {
-    clearInterval(configInterval);
-    configInterval = null;
-  }
 
 });
+
+
 
  // Envoi la commande PGN 59904
 document.getElementById('f_raf-button').addEventListener('click', async () => {

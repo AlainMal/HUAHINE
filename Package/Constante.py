@@ -35,12 +35,13 @@ CANSTATUS_ERROR_PASSIVE = 0x20
 CANSTATUS_ARBITRATION_LOST = 0x40
 CANSTATUS_BUS_ERROR = 0x80
 
+
+
 # Liste des PGN nécessitant la mise en mémoire
 PGN_129038 = 0
 PGN_129039 = 1
-PGN_129049 = 2
-PGN_127506 = 3
-PGN_126464 = 4
+PGN_127506 = 2
+PGN_126464 = 3
 # Liste à compléter...
 
 # Liste des huit octets

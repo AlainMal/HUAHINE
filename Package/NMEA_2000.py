@@ -98,12 +98,10 @@ class NMEA2000:
         # Dictionnaire séparé pour assembler les configurations produit (PGN 126996)
         self._temp_config = {}
 
-        # self._coor = None
-
         # Défini la taille de la mémoire, elle est calculé au plus juste, mais c'est la plus rapide.
         nombre_octets = 8
-        nombre_pgn = 25     # On a plus de PGN mais
-        nombre_trames = 36  # On limite la valeur à 36 le nombre maximum de trames sur le même PGN.
+        nombre_pgn = 5
+        nombre_trames = 36
         valeur_defaut = 0
 
         # Crée une table 3D fixe remplie avec la valeur par défaut
