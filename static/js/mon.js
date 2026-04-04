@@ -2877,10 +2877,10 @@ const updatePosition = async () => {
                             hour12: false
                         })}<br>
                         Position: ${lastPoint.latitude.toFixed(5)}, ${lastPoint.longitude.toFixed(5)}<br>
-                        Cap: ${lastPoint.cog}°<br>
-                        Vitesse: ${lastPoint.sog.toFixed(1)} nœuds<br>
+                        COG: ${lastPoint.cog}°<br>
+                        SOG: ${lastPoint.sog.toFixed(1)} nœuds<br>
                         Vent: ${formatWind(lastPoint.w_angle_true)}  - 
-                        Force : ${typeof normalizedPoint.w_speed_true === 'number' ? normalizedPoint.w_speed_true.toFixed(1) : 'N/A'}`,
+                        Vitesse : ${typeof normalizedPoint.w_speed_true === 'number' ? normalizedPoint.w_speed_true.toFixed(1) : 'N/A'}`,
 
                         { className: 'transparent-popup' });
                     historyLiveMarker.on('mouseover', function () { this.openPopup(); })
@@ -3209,10 +3209,10 @@ const drawHistory = (data, filename) => {
                 hour12: false
             })}<br>
             Position: ${normalizedPoint.latitude.toFixed(5)}°N, ${normalizedPoint.longitude.toFixed(5)}°E<br>
-            Cap: ${typeof normalizedPoint.cog === 'number' ? normalizedPoint.cog.toFixed(1) : 'N/A'}°<br>
-            Vitesse: ${typeof normalizedPoint.speed === 'number' ? normalizedPoint.speed.toFixed(1) : 'N/A'} nœuds.<br>
+            COG: ${typeof normalizedPoint.cog === 'number' ? normalizedPoint.cog.toFixed(1) : 'N/A'}°<br>
+            SOG: ${typeof normalizedPoint.speed === 'number' ? normalizedPoint.speed.toFixed(1) : 'N/A'} nœuds.<br>
             Vent : ${formatWind(normalizedPoint.allure)}  - 
-            Force : ${typeof normalizedPoint.w_speed_true === 'number' ? normalizedPoint.w_speed_true.toFixed(1) : 'N/A'} nœuds.
+            Vitesse : ${typeof normalizedPoint.w_speed_true === 'number' ? normalizedPoint.w_speed_true.toFixed(1) : 'N/A'} nœuds.
         `, { className: 'transparent-popup' });
 
 
