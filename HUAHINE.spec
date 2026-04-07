@@ -22,9 +22,8 @@ datas = [
 static_files = []
 for root, dirs, files in os.walk('static'):
     for file in files:
-        if not file.endswith('.mbtiles'):  # Exclure les fichiers mbtiles
+        if not file.endswith('.mbtiles'):
             src_path = os.path.join(root, file)
-            # Le chemin de destination doit préserver la structure de dossiers
             dest_dir = root
             static_files.append((src_path, dest_dir))
 
@@ -47,7 +46,7 @@ a = Analysis(
     ['HUAHINE.py'],
     pathex=[],
     binaries=[],
-    datas=datas,   
+    datas=datas,
     hiddenimports=[
         'quart',
         'hypercorn',
@@ -95,13 +94,12 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='VoilierImage.ico',
 )
 
 # ---------------------------------------------------------
 # 3. Création des répertoires vides dans dist
 # ---------------------------------------------------------
 
-# Les dossiers static sont maintenant copiés automatiquement via datas
-# Il faut seulement créer les dossiers pour history et routes (dossiers de travail)
 os.makedirs(os.path.join(DISTPATH, 'history'), exist_ok=True)
 os.makedirs(os.path.join(DISTPATH, 'routes'), exist_ok=True)
