@@ -56,8 +56,6 @@ a = Analysis(
         'h11',
         'h2',
         'priority',
-        'flask',
-        'flask.templating',
         'jinja2',
         'werkzeug',
         'webCartes',
