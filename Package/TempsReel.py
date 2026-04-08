@@ -14,10 +14,14 @@ class TempsReel:
             # On met le résultat dans un fichier si la case à cocher est validée.
             if coche_file:
                 with open(file_path, "a") as file:
-                    # Formatage des données en hexadécimal, max 8 octets
-                    datas = ' '.join([f"{byte:02X}" for byte in msg.data[:8]])  # Sécurité : max 8 octets
-                    # Écriture : timestamp, ID sur 8 caractères hex, longueur sur 2 caractères hex, données
-                    file.write(f"{msg.TimeStamp} {msg.ID:08X} {msg.len:01X} {datas}\n")
+                    # Limite de sécurité : max 8 octets
+                    data_bytes = msg.data[:msg.len]
+
+                    # Formatage hexadécimal
+                    datas = " ".join(f"{byte:02X}" for byte in data_bytes)
+
+                    # Écriture : timestamp, ID sur 8 hex, longueur sur 1 hex, données
+                    file.write(f"{msg.TimeStamp} {msg.ID:08X} {msg.len:X} {datas}\n")
 
             # *************** EMPLACEMENT PRÉVU POUR METTRE LE TEMPS REEL *********************
             #                             NMEA 2000
