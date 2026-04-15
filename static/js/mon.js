@@ -4122,28 +4122,25 @@ document.getElementById('toggle-labels').addEventListener('click', function () {
   this.classList.toggle('active');
   AppState.IsNoDisplay = this.classList.contains('active');
 
+  // Message dynamique
+  if (AppState.IsNoDisplay) {
+    showMessage("Étiquettes masquées.", "info");
+  } else {
+    showMessage("Étiquettes affichées.", "info");
+  }
+
+  // Affichage / masquage des labels
   const labels = document.querySelectorAll('.distance-label');
   labels.forEach(label => {
     label.style.display = AppState.IsNoDisplay ? 'none' : 'block';
   });
 
-  /*
-    // A FAIRE SUR UN AUTRE BOUTON
-  // ✅ Ajouter / retirer la classe globale pour cacher les icônes
-    if (AppState.IsNoDisplay) {
-        document.body.classList.add('hide-pin');
-    } else {
-        document.body.classList.remove('hide-pin');
-    }
-    */
-
-  this.title = AppState.IsNoDisplay ? "Afficher les étiquettes de distance" : "Masquer les étiquettes de distance";});
-
-// Événements de la carte
-map.on('moveend zoomend', () => {
-    const center = map.getCenter();
-    updateInfo(`Zoom: ${map.getZoom()}<br>Position: ${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}`);
+  // Mise à jour du title
+  this.title = AppState.IsNoDisplay
+    ? "Afficher les étiquettes de distance"
+    : "Masquer les étiquettes de distance";
 });
+
 
 // ==============================================
 // 19. INTERVALLES DE MISE À JOUR ET NETTOYAGE
@@ -4201,30 +4198,45 @@ async function loadConfig() {
 let configInterval = null;
 
 
-document.getElementById('f_config').addEventListener('click', async () => {
-  event.currentTarget.classList.toggle('active');
-  AppState.IsIntervenantVisible = !AppState.IsIntervenantVisible;
-  if (!AppState.IsIntervenantVisible) {
-        document.getElementById('f_modal').style.display = 'none';
-      // Stopper le rafraîchissement automatique
-      if (configInterval) {
-        clearInterval(configInterval);
-        configInterval = null;
-      }
-      return;
-  }
-    await loadConfig();
+document.getElementById('f_config').addEventListener('click', async (event) => {
+  const btn = event.currentTarget;
 
-  // Faire cette opération toutes les 20 secondes
+  // Toggle visuel
+  btn.classList.toggle('active');
+
+  // Mise à jour de l'état global
+  AppState.IsIntervenantVisible = !AppState.IsIntervenantVisible;
+
+  // Mise à jour du title
+  btn.title = AppState.IsIntervenantVisible
+    ? "Masquer la fenêtre 'liste des instruments'"
+    : "Afficher la liste des instruments";
+
+  // Si on masque la fenêtre
+  if (!AppState.IsIntervenantVisible) {
+    document.getElementById('f_modal').style.display = 'none';
+
+    // Stopper le rafraîchissement automatique
+    if (configInterval) {
+      clearInterval(configInterval);
+      configInterval = null;
+    }
+
+    return;
+  }
+
+  // Sinon : on affiche et on charge
   document.getElementById('f_modal').style.display = 'flex';
-  // Démarrer le rafraîchissement toutes les 20 secondes
+
+  // Chargement initial
+  await loadConfig();
+
+  // Rafraîchissement toutes les 20 secondes
   configInterval = setInterval(async () => {
     await loadConfig();
   }, 20000);
-
-
-
 });
+
 
 
 
