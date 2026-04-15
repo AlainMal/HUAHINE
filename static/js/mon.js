@@ -1277,7 +1277,7 @@ const measureTool = {
                     <img src="./static/icone/distance.png" alt="Mesure" width="16" height="16">
                 </a>
                 <a href="#" id="toggle-reverse" class="measure-button" title="Inverser la route.">
-                    <img src="./static/icone/distance.png" alt="Mesure" width="16" height="16">
+                    <img src="./static/icone/reverse.webp" alt="Mesure" width="16" height="16">
                 </a>
                 <a href="#" id="saveRouteButton" class="measure-button" title="Sauvegarder la route" >
                     <img src="./static/icone/enregistrer.png" alt="Sauvegarder" width="16" height="16">
@@ -1326,6 +1326,15 @@ const measureTool = {
                 L.DomEvent.on(loadButton, 'click', function(e) {
                     L.DomEvent.stop(e);
                     self.loadRoute();
+                });
+            }
+
+            // Bouton d'inversion de la route
+            const reverseButton = div.querySelector('#toggle-reverse');
+            if (reverseButton) {
+                L.DomEvent.on(reverseButton, 'click', function(e) {
+                    L.DomEvent.stop(e);
+                    self.reverseRoute();
                 });
             }
 
@@ -1588,6 +1597,128 @@ const measureTool = {
         if (isRouteCompleted) {
             this.showInvertedRouteMessage();
         }
+    },
+
+    reverseRoute: function() {
+        console.log("=== INVERSION DE LA ROUTE ===");
+
+        if (this.points.length < 2) {
+            showMessage('Au moins 2 points sont nécessaires pour inverser la route', 'error', false);
+            return;
+        }
+
+        // Ne pas autoriser l'inversion pendant la modification du nom d'un waypoint
+        if (this.isModifWaypoint) {
+            showMessage('Terminez la modification du waypoint avant d\'inverser la route', 'error', false);
+            return;
+        }
+
+        // Inverser les points et les waypoints
+        this.points.reverse();
+        if (this.waypoints && this.waypoints.length === this.points.length) {
+            this.waypoints.reverse();
+        }
+
+        // Échanger les drapeaux d\'accrochage au bateau
+        const tmp = this.firstPointOnBoat;
+        this.firstPointOnBoat = this.lastPointOnBoat;
+        this.lastPointOnBoat = tmp;
+
+        // Nettoyer les couches graphiques existantes (sans effacer les points)
+        this.labels.forEach(label => this.map.removeLayer(label));
+        this.lines.forEach(line => this.map.removeLayer(line));
+        this.markers.forEach(marker => this.map.removeLayer(marker));
+        this.labels = [];
+        this.lines = [];
+        this.markers = [];
+
+        // Recréer tous les marqueurs selon les règles actuelles
+        this.points.forEach((latLng, index) => {
+            const isFirstAndAttached = (index === 0 && this.firstPointOnBoat);
+            const isLastAndAttached = (index === this.points.length - 1 && this.lastPointOnBoat);
+            const isDraggable = !isFirstAndAttached && !isLastAndAttached && !this.isLoadedRoute; // lecture seule -> non draggable
+
+            const marker = L.marker(latLng, {
+                icon: pinIcon,
+                interactive: true,
+                draggable: isDraggable
+            }).addTo(this.map);
+
+            const waypointName = (this.waypoints && this.waypoints[index]) ? this.waypoints[index] : `Point ${index + 1}`;
+
+            const popupContent = isDraggable
+                ? `<strong>${waypointName}</strong><br>
+                   Position: ${latLng.lat.toFixed(5)}, ${latLng.lng.toFixed(5)}<br>
+                   <small>Cliquez et faites glisser pour déplacer</small>`
+                : `<strong>${waypointName}${(isFirstAndAttached || isLastAndAttached) ? ' - Accroché au bateau' : ''}</strong><br>
+                   Position: ${latLng.lat.toFixed(5)}, ${latLng.lng.toFixed(5)}${(isFirstAndAttached || isLastAndAttached) ? '<br><small>Point fixé au bateau (non déplaçable)</small>' : ''}`;
+
+            marker.bindPopup(popupContent);
+
+            if (isFirstAndAttached || isLastAndAttached) {
+                marker.setIcon(L.divIcon({
+                    className: 'boat-attached-marker',
+                    html: '<div style="background: #ff4444; border: 2px solid #ffffff; border-radius: 50%; width: 14px; height: 14px; cursor: not-allowed;"></div>',
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7]
+                }));
+            } else {
+                marker.bindTooltip(`${waypointName} - Cliquez pour déplacer ou cliquez à droite`, {
+                    permanent: false,
+                    direction: 'top'
+                });
+            }
+
+            // Drag handlers si autorisé
+            if (isDraggable) {
+                marker.on('drag', (e) => {
+                    const newLatLng = e.target.getLatLng();
+                    this.points[index] = newLatLng;
+                    this.updateDistances(this.lastPointOnBoat);
+                });
+
+                marker.on('dragend', (e) => {
+                    const newLatLng = e.target.getLatLng();
+                    this.points[index] = newLatLng;
+                    this.updateDistances(this.lastPointOnBoat);
+                });
+
+                // Menu contextuel (renommer/supprimer)
+                marker.on('contextmenu', (e) => {
+                    L.DomEvent.stopPropagation(e);
+                    const markerIndex = this.markers.indexOf(marker);
+                    const wName = this.waypoints[markerIndex] || `Point ${markerIndex + 1}`;
+                    const contextMenu = `
+                        <div style="padding: 10px; text-align: center;">
+                            <strong>${wName}</strong><br>
+                            <button onclick="measureTool.renamePointAtIndex(${markerIndex}); return false;"
+                                    style="margin-top: 8px; padding: 8px 16px; background: #4CAF50; color: white;
+                                           border: none; border-radius: 4px; cursor: pointer; font-size: 14px; margin-right: 5px;">
+                                ✏️ Renommer
+                            </button>
+                            <button onclick="measureTool.deletePointAtIndex(${markerIndex}); return false;"
+                                    style="margin-top: 8px; padding: 8px 16px; background: #ff4444; color: white;
+                                           border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                                🗑️ Supprimer
+                            </button>
+                        </div>
+                    `;
+                    marker.bindPopup(contextMenu).openPopup();
+                });
+            }
+
+            this.markers.push(marker);
+        });
+
+        // Recalculer l\'affichage des distances
+        this.updateDistances(this.lastPointOnBoat);
+
+        // Adapter la vue
+        const bounds = L.latLngBounds(this.points);
+        this.map.fitBounds(bounds, { padding: [50, 50] });
+
+        // Message utilisateur
+        this.showInvertedRouteMessage();
     },
 
     getCurrentBoatPosition: function() {
