@@ -303,6 +303,15 @@ const normalizeFilename = (name) => {
     return name.endsWith(".json") ? name : `${name}.json`;
 };
 
+function deactivateReverseButton() {
+    const btn = document.getElementById('toggle-reverse');
+    if (!btn) return;
+
+    btn.classList.remove('active');
+    btn.title = "Activer l'inversion de la route";
+}
+
+
 // ==============================================
 // 4. INITIALISATION DE LA CARTE ET DES COUCHES
 // ==============================================
@@ -355,7 +364,7 @@ mondeTileLayer.addTo(map);
 
 // Contrôle des couches
 const baseMaps = {
-    "Carte Plan&egrave;te": mondeTileLayer,
+    "Carte Mer Plan&egrave;te": mondeTileLayer,
     "Carte SonarChart": merTileLayer,
     "Carte Navionics": navionicsTileLayer
 };
@@ -1277,7 +1286,7 @@ const measureTool = {
                     <img src="./static/icone/distance.png" alt="Mesure" width="16" height="16">
                 </a>
                 <a href="#" id="toggle-reverse" class="measure-button" title="Inverser la route.">
-                    <img src="./static/icone/reverse.webp" alt="Mesure" width="16" height="16">
+                    <img src="./static/icone/reverse.png" alt="Mesure" width="16" height="16">
                 </a>
                 <a href="#" id="saveRouteButton" class="measure-button" title="Sauvegarder la route" >
                     <img src="./static/icone/enregistrer.png" alt="Sauvegarder" width="16" height="16">
@@ -1332,11 +1341,24 @@ const measureTool = {
             // Bouton d'inversion de la route
             const reverseButton = div.querySelector('#toggle-reverse');
             if (reverseButton) {
-                L.DomEvent.on(reverseButton, 'click', function(e) {
+                L.DomEvent.on(reverseButton, 'click', function (e) {
                     L.DomEvent.stop(e);
+
+                    // Toggle visuel
+                    this.classList.toggle('active');
+
+                    // Appel logique
                     self.reverseRoute();
+
+                    // Mise à jour du title
+                    const isActive = this.classList.contains('active');
+                    this.title = isActive
+                        ? "Désactiver l'inversion de la route"
+                        : "Activer l'inversion de la route";
                 });
             }
+
+
 
             return div;
         };
@@ -1604,6 +1626,7 @@ const measureTool = {
 
         if (this.points.length < 2) {
             showMessage('Au moins 2 points sont nécessaires pour inverser la route', 'error', false);
+            deactivateReverseButton();
             return;
         }
 
@@ -2910,6 +2933,8 @@ handleKeyPress: function(e) {
             // Réactiver l'interactivité du bateau
             setShipMarkerInteractive(true);
             showMessage('Mode mesure DÉSACTIVÉ.', 'info');
+            deactivateReverseButton();
+
             console.log("✅ Mode mesure désactivé");
         }
     }
