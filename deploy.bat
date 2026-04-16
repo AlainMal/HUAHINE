@@ -15,6 +15,9 @@ pyinstaller.exe  --clean HUAHINE.spec
 rem Attendre que la compilation soit terminée
 timeout /t 2
 
+
+call copy_resources.bat
+
 echo.
 echo ========================================
 echo   COMPILATION TERMINEE

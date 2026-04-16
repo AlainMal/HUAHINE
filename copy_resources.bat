@@ -38,6 +38,8 @@ echo Copie des autres fichiers static...
 copy static\*.png dist\static\ >nul 2>&1
 copy static\*.ico dist\static\ >nul 2>&1
 echo   [OK] Autres fichiers copies
+copy VoilierImage.ico dist\ >nul 2>&1
+
 
 echo.
 echo ========================================

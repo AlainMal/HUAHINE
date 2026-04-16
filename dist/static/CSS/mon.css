@@ -218,7 +218,7 @@ strong {
     left: 50px !important;    /* Marge à gauche pour éviter les conflits */
     background: white;
     padding: 10px;
-    width: 130px !important;
+    width: 150px !important;
     min-width: 130px !important;
     z-index: 1001 !important;
     border: 2px solid #1e88e5;
@@ -377,6 +377,15 @@ strong {
     border: none !important; /* Supprime la bordure grise héritée */
     background-color: white !important;
 
+}
+
+#toggle-reverse {
+    transition: background-color 0.2s ease;
+}
+
+#toggle-reverse.active {
+    background-color: #00FF00;   /* bleu activé */
+    color: white;
 }
 
 /* Barres de contrôles Leaflet */
