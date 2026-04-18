@@ -308,7 +308,7 @@ function deactivateReverseButton() {
     if (!btn) return;
 
     btn.classList.remove('active');
-    btn.title = "Activer l'inversion de la route";
+    btn.title = "Inverser la route";
 }
 
 
@@ -1352,9 +1352,11 @@ const measureTool = {
 
                     // Mise à jour du title
                     const isActive = this.classList.contains('active');
-                    this.title = isActive
-                        ? "Désactiver l'inversion de la route"
-                        : "Activer l'inversion de la route";
+                    if (isActive) {
+                        this.title = "Désactiver l'inversion de la route";
+                    } else {
+                        this.title = "Inverser la route";
+                    }
                 });
             }
 
@@ -1907,14 +1909,23 @@ const measureTool = {
 
         // Calculer le temps estimé
         const currentSpeed = this.getCurrentBoatSpeed();
-        let speedToUse = (currentSpeed && currentSpeed > 0.5) ? currentSpeed : this.getDefaultCruisingSpeed();
+        let speedToUse =  this.getDefaultCruisingSpeed();
         const timeHours = totalDistanceNM / speedToUse;
         const timeFormatted = this.formatTime(timeHours);
 
-        const messageContent = `<img src="./static/icone/mesure.png" alt="Mesure" width="16" height="16">
-            Votre départ a lieu inversé - Distance : ${totalDistanceNM} NM -
+        const inverseButton = document.getElementById('toggle-reverse');
+        const isReversed = inverseButton && inverseButton.classList.contains('active');
+
+        const messageContent = `
+            <img src="./static/icone/mesure.png" alt="Mesure" width="16" height="16">
+            ${isReversed 
+                ? `Votre départ a lieu inversé - Distance : ${totalDistanceNM} NM -`
+                : `Votre départ est redevenu normal - Distance : ${totalDistanceNM} NM -`
+            }
             <img src="./static/icone/minuteur.png" alt="Temps" width="16" height="16">
-            Temps estimé : ${timeFormatted}`;
+            Temps estimé : ${timeFormatted}
+        `;
+
 
         // Créer ou mettre à jour le message permanent dédié avec le type success (vert)
         this.updatePermanentMessage(messageContent, 'info');
