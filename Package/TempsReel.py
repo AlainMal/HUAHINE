@@ -38,5 +38,5 @@ class TempsReel:
                 # Récupère la source.
                 source = main_window.nmea_2000.source(msg.ID)
                 # Appelle la fonction "octets" dans "NMEA_2000.py" en temps réel
-                main_window.nmea_2000.octets(pgn, source, msg.data) # Ce qui est fait dans "octets".
+                main_window.nmea_2000.octets(pgn, source, msg.data)
             # =================================================================================
