@@ -1917,18 +1917,16 @@ const measureTool = {
         const isReversed = inverseButton && inverseButton.classList.contains('active');
 
         const messageContent = `
-            <img src="./static/icone/mesure.png" alt="Mesure" width="16" height="16">
+            <img src="./static/icone/reverse.png" alt="Mesure" width="16" height="16">
             ${isReversed 
-                ? `Votre départ a lieu inversé - Distance : ${totalDistanceNM} NM -`
-                : `Votre départ est redevenu normal - Distance : ${totalDistanceNM} NM -`
-            }
-            <img src="./static/icone/minuteur.png" alt="Temps" width="16" height="16">
-            Temps estimé : ${timeFormatted}
-        `;
+                ? `Votre départ a lieu inversé`
+                : `Votre départ est redevenu normal`
+            }`;
 
 
         // Créer ou mettre à jour le message permanent dédié avec le type success (vert)
-        this.updatePermanentMessage(messageContent, 'info');
+        showMessage(messageContent,'success');
+        //this.updatePermanentMessage(messageContent, 'info');
     },
 
     updatePermanentMessage: function(content, type = 'success') {
