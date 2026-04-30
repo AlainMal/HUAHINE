@@ -7,7 +7,6 @@ import ctypes
 import sqlite3
 import qasync
 import logging
-import os
 import sys
 import json
 import warnings
@@ -30,8 +29,7 @@ warnings.filterwarnings(
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtWidgets import QTableView, QMessageBox, QFileDialog
 from PyQt5.QtWidgets import QMainWindow, QAbstractItemView
-from PyQt5.QtCore import Qt as QtCore
-from PyQt5.QtCore import QAbstractTableModel, QModelIndex, pyqtSlot
+from PyQt5.QtCore import QAbstractTableModel, QModelIndex, pyqtSlot, Qt
 from PyQt5.QtGui import QIcon
 from PyQt5.uic import loadUi
 from quart import Quart, render_template, Response, jsonify, request
@@ -93,8 +91,8 @@ class TableModel(QAbstractTableModel):
         return 3
 
     # Méthode pour retourner la donnée de la trame. --------------------------------------------------------------------
-    def data(self, index: QModelIndex, role=QtCore.DisplayRole):
-        if role == QtCore.DisplayRole:
+    def data(self, index: QModelIndex, role=Qt.DisplayRole):
+        if role == Qt.DisplayRole:
             # Obtenir l'indice réel dans l'ordre FIFO (en respectant l'ordre haut vers bas)
             real_index = self.get_real_index(index.row())
             trame = self._buffer[real_index]
@@ -109,12 +107,12 @@ class TableModel(QAbstractTableModel):
         return None
 
     # Méthode pour retourner l'en-tête. --------------------------------------------------------------------------------
-    def headerData(self, section, orientation, role=QtCore.DisplayRole):
-        if role == QtCore.DisplayRole:
-            if orientation == QtCore.Horizontal:
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if role == Qt.DisplayRole:
+            if orientation == Qt.Horizontal:
                 headers = ["ID", "Len", "Datas"]
                 return headers[section]
-            elif orientation == QtCore.Vertical:
+            elif orientation == Qt.Vertical:
                 return str(section + 1)
         return None
 # ************************************ FIN DE LA CLASSE TableModel *****************************************************
@@ -278,9 +276,9 @@ class MainWindow(QMainWindow):
                   f"Datas : {col3}")
         else:
             # Logique par défaut si un modèle autre qu'un buffer circulaire est utilisé
-            col1 = model.data(model.index(ligne, 0), QtCore.DisplayRole)
-            col2 = model.data(model.index(ligne, 1), QtCore.DisplayRole)
-            col3 = model.data(model.index(ligne, 2), QtCore.DisplayRole)
+            col1 = model.data(model.index(ligne, 0), Qt.DisplayRole)
+            col2 = model.data(model.index(ligne, 1), Qt.DisplayRole)
+            col3 = model.data(model.index(ligne, 2), Qt.DisplayRole)
 
             print(f"Ligne sélectionnée : {ligne}\n"
                   f"ID : {col1}\n"
@@ -311,8 +309,8 @@ class MainWindow(QMainWindow):
                                + " " + str(octetsTuple[2]) + ": " + str(octetsTuple[5]) + "\n"    # PGN3 : Valeur 3
                                + " Table : " + str(octetsTuple[6]) + ": \n"                       # Table :
                                + " Définition : " + str(octetsTuple[7])) + "\n"                   # Définition
-            except Exception as error:
-                print(f"Erreur dans l'appel à octets : {error}")
+            except Exception as e:
+                print(f"Erreur dans l'appel à octets : {e}")
 
     # Méthode pour remplir la table venant d'un fichier. ---------------------------------------------------------------
     def affiche_trame_fichier(self, trame):
@@ -404,7 +402,7 @@ class MainWindow(QMainWindow):
             QMessageBox.Yes | QMessageBox.No
         )
         if reply == QMessageBox.Yes:
-            event.accept()  # on laisse fermer
+            event.accept()  # on laisse fermer.
             # self.close_both()
             # Demander l'arrêt propre directement via handle_shutdown (exposé sur la fenêtre principale)
             try:
@@ -459,7 +457,7 @@ class MainWindow(QMainWindow):
 
     # Méthode sur la case à cocher. ------------------------------------------------------------------------------------
     def on_check_file_changed(self, state):
-        if state == QtCore.Checked:
+        if state == Qt.Checked:
             if not self._file_path:
                 QMessageBox.information(self, "ENREGISTREMENT",
                                         "Veuillez ouvrir un fichier avant de pouvoir l'enregistrer.")
@@ -477,8 +475,8 @@ class MainWindow(QMainWindow):
 
     # Méthode pour ouvrir le fichier texte, prêt à l'enregistrement. ----------------------------------------------------
     def on_click_file(self):
-        # self.setCursor(QtCore.WaitCursor)
-        self.setCursor(QtCore.CursorShape.WaitCursor)
+        # self.setCursor(Qt.WaitCursor)
+        self.setCursor(Qt.CursorShape.WaitCursor)
 
         __previous_file_path = self._file_path
 
@@ -540,7 +538,7 @@ class MainWindow(QMainWindow):
             start_index = resultat
 
         try:
-            QApplication.setOverrideCursor(QtCore.CursorShape.WaitCursor)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
             liste_tuples = []
             with open(self._file_path, 'r', encoding='utf-8', errors='replace') as fichier:
                 for i, ligne in enumerate(fichier):
@@ -1919,9 +1917,7 @@ if __name__ == "__main__":
     except ImportError as e:
         print(f"[ERREUR] Hypercorn non disponible: {e}")
 
-    # Importer QtWebEngineWidgets AVANT de créer QApplication
-    from PyQt5.QtWebEngineWidgets import QWebEngineView
-    from PyQt5.QtCore import Qt
+
 
     # Définir l'attribut AVANT la création de QApplication
     QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)

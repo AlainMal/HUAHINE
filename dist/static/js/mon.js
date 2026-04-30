@@ -308,7 +308,7 @@ function deactivateReverseButton() {
     if (!btn) return;
 
     btn.classList.remove('active');
-    btn.title = "Activer l'inversion de la route";
+    btn.title = "Inverser la route";
 }
 
 
@@ -1073,7 +1073,7 @@ window.showShipDetails = (mmsi) => {
         </div>
         
         <div style="padding: 15px; max-height: 500px; overflow-y: auto;">
-            <div style="display: grid; gap: 12px;">ESW
+            <div style="display: grid; gap: 12px;">${ship.name || 'Non disponible'}
                 
                 <!-- Informations principales -->
                 <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border-left: 4px solid #1e88e5;">
@@ -1352,9 +1352,11 @@ const measureTool = {
 
                     // Mise à jour du title
                     const isActive = this.classList.contains('active');
-                    this.title = isActive
-                        ? "Désactiver l'inversion de la route"
-                        : "Activer l'inversion de la route";
+                    if (isActive) {
+                        this.title = "Désactiver l'inversion de la route";
+                    } else {
+                        this.title = "Inverser la route";
+                    }
                 });
             }
 
@@ -1515,7 +1517,7 @@ const measureTool = {
         const pointIndex = this.points.length - 1;
 
         // Ajouter un nom par défaut pour ce waypoint
-        this.waypoints.push(`Point ${pointIndex + 1}`);
+        this.waypoints.push(`${pointIndex + 1}`);
 
         // Couleur différente pour les points accrochés au bateau
         const isFirstAndAttached = (this.points.length === 1 && this.firstPointOnBoat);
@@ -1541,7 +1543,7 @@ const measureTool = {
             console.log("✅ Marqueur rouge créé pour le point accroché (non draggable)");
         } else {
             // Ajouter le tooltip pour indiquer que le point est draggable
-            marker.bindTooltip(`Point ${pointIndex + 1} - Cliquez pour déplacer ou cliquez à droite`, {
+            marker.bindTooltip(`${pointIndex + 1} - Cliquez pour déplacer ou cliquez à droite`, {
                 permanent: false,
                 direction: 'top'
             });
@@ -1581,7 +1583,7 @@ const measureTool = {
             marker.on('contextmenu', (e) => {
                 L.DomEvent.stopPropagation(e);
                 const markerIndex = this.markers.indexOf(marker);
-                const waypointName = this.waypoints[markerIndex] || `Point ${markerIndex + 1}`;
+                const waypointName = this.waypoints[markerIndex] || `${markerIndex + 1}`;
 
                 // Créer un popup personnalisé avec boutons de renommage et suppression
                 const contextMenu = `
@@ -1667,7 +1669,7 @@ const measureTool = {
                 draggable: isDraggable
             }).addTo(this.map);
 
-            const waypointName = (this.waypoints && this.waypoints[index]) ? this.waypoints[index] : `Point ${index + 1}`;
+            const waypointName = (this.waypoints && this.waypoints[index]) ? this.waypoints[index] : `${index + 1}`;
 
             const popupContent = isDraggable
                 ? `<strong>${waypointName}</strong><br>
@@ -1710,7 +1712,7 @@ const measureTool = {
                 marker.on('contextmenu', (e) => {
                     L.DomEvent.stopPropagation(e);
                     const markerIndex = this.markers.indexOf(marker);
-                    const wName = this.waypoints[markerIndex] || `Point ${markerIndex + 1}`;
+                    const wName = this.waypoints[markerIndex] || `${markerIndex + 1}`;
                     const contextMenu = `
                         <div style="padding: 10px; text-align: center;">
                             <strong>${wName}</strong><br>
@@ -1907,17 +1909,24 @@ const measureTool = {
 
         // Calculer le temps estimé
         const currentSpeed = this.getCurrentBoatSpeed();
-        let speedToUse = (currentSpeed && currentSpeed > 0.5) ? currentSpeed : this.getDefaultCruisingSpeed();
+        let speedToUse =  this.getDefaultCruisingSpeed();
         const timeHours = totalDistanceNM / speedToUse;
         const timeFormatted = this.formatTime(timeHours);
 
-        const messageContent = `<img src="./static/icone/mesure.png" alt="Mesure" width="16" height="16">
-            Votre départ a lieu inversé - Distance : ${totalDistanceNM} NM -
-            <img src="./static/icone/minuteur.png" alt="Temps" width="16" height="16">
-            Temps estimé : ${timeFormatted}`;
+        const inverseButton = document.getElementById('toggle-reverse');
+        const isReversed = inverseButton && inverseButton.classList.contains('active');
+
+        const messageContent = `
+            <img src="./static/icone/reverse.png" alt="Mesure" width="16" height="16">
+            ${isReversed 
+                ? `Votre départ a lieu inversé`
+                : `Votre départ est redevenu normal`
+            }`;
+
 
         // Créer ou mettre à jour le message permanent dédié avec le type success (vert)
-        this.updatePermanentMessage(messageContent, 'info');
+        showMessage(messageContent,'success');
+        //this.updatePermanentMessage(messageContent, 'info');
     },
 
     updatePermanentMessage: function(content, type = 'success') {
@@ -2204,7 +2213,7 @@ handleKeyPress: function(e) {
         this.points.splice(index, 0, latLng);
         // Insérer un nom de waypoint par défaut au même index pour conserver l'alignement noms/index
         if (!Array.isArray(this.waypoints)) this.waypoints = [];
-        this.waypoints.splice(index, 0, `Point ${index + 1}`);
+        this.waypoints.splice(index, 0, `${index + 1}`);
 
         // Créer un nouveau marqueur draggable
         const marker = L.marker(latLng, {
@@ -2214,7 +2223,7 @@ handleKeyPress: function(e) {
         }).addTo(this.map);
 
         // Ajouter le tooltip avec le nom du waypoint (sans modifier les noms existants)
-        const insertedWaypointName = this.waypoints[index] || `Point ${index + 1}`;
+        const insertedWaypointName = this.waypoints[index] || `${index + 1}`;
         marker.bindTooltip(`${insertedWaypointName} - Cliquez pour déplacer ou cliquez à droite`, {
             permanent: false,
             direction: 'top'
@@ -2245,7 +2254,7 @@ handleKeyPress: function(e) {
         marker.on('contextmenu', (e) => {
             L.DomEvent.stopPropagation(e);
             const markerIndex = this.markers.indexOf(marker);
-            const waypointName = this.waypoints[markerIndex] || `Point ${markerIndex + 1}`;
+            const waypointName = this.waypoints[markerIndex] || `${markerIndex + 1}`;
 
             const contextMenu = `
                 <div style="padding: 10px; text-align: center;">
@@ -2292,7 +2301,7 @@ handleKeyPress: function(e) {
             // Ne pas modifier les marqueurs accrochés au bateau
             if (!isFirstAndAttached && !isLastAndAttached) {
                 // Utiliser le nom du waypoint existant s'il est défini, sinon un nom par défaut
-                const waypointName = (Array.isArray(this.waypoints) ? this.waypoints[index] : null) || `Point ${index + 1}`;
+                const waypointName = (Array.isArray(this.waypoints) ? this.waypoints[index] : null) || `${index + 1}`;
 
                 // Mettre à jour le tooltip sans altérer this.waypoints
                 marker.unbindTooltip();
@@ -2376,7 +2385,7 @@ handleKeyPress: function(e) {
         this.isModifWaypoint = true;
 
         // Récupérer le nom actuel
-        const currentName = this.waypoints[index] || `Point ${index + 1}`;
+        const currentName = this.waypoints[index] || `${index + 1}`;
 
          // Demander le nouveau nom avec un prompt
         const newName = prompt(`Renommer le waypoint:\n\nNom actuel: ${currentName}\nNouveau nom:`, currentName);
@@ -2492,22 +2501,27 @@ handleKeyPress: function(e) {
         }
 
         // Demander le nom de la route
-        const routeName = prompt("Nom de la route qui sera en lecture seule:\n\n" +
-            (existingRoutes.length > 0 ?
-                "Routes existantes:\n- " + existingRoutes.map(f => f.replace('.json', '')).join('\n- ') :
-                "Aucune route existante"));
+        const routeName = prompt(
+            "Nom de la route:\n\n" +
+            (existingRoutes.length > 0
+                ? "Routes existantes:\n- " + existingRoutes.map(f => f.name.replace('.json', '')).join('\n- ')
+                : "Aucune route existante")
+        );
 
         if (!routeName) return;
 
         // Vérifier si le nom existe déjà
         const filename = `${routeName}.json`;
-        if (existingRoutes.includes(filename)) {
+        const exists = existingRoutes.some(f => f.name === filename);
+
+        if (exists) {
             const confirmReplace = confirm(`La route "${routeName}" existe déjà.\n\nVoulez-vous la remplacer ?`);
             if (!confirmReplace) {
                 showMessage('Sauvegarde annulée. Veuillez choisir un autre nom.', 'info', false);
                 return;
             }
         }
+
 
         // Calculer la distance totale
         let totalDistance = 0;
@@ -2528,7 +2542,7 @@ handleKeyPress: function(e) {
                 index: index,
                 lat: point.lat,
                 lng: point.lng,
-                name: this.waypoints[index] || `Point ${index + 1}`
+                name: this.waypoints[index] || `${index + 1}`
             }))
         };
 
@@ -2589,7 +2603,7 @@ handleKeyPress: function(e) {
                 index: index,
                 lat: point.lat,
                 lng: point.lng,
-                name: this.waypoints[index] || `Point ${index + 1}`
+                name: this.waypoints[index] || `${index + 1}`
             }))
         };
 
@@ -2664,16 +2678,16 @@ handleKeyPress: function(e) {
 
             if (routeData.waypoints && Array.isArray(routeData.waypoints)) {
                 // Charger les noms personnalisés depuis le JSON
-                this.waypoints = routeData.waypoints.map(name => name || `Point ${this.waypoints.length + 1}`);
+                this.waypoints = routeData.waypoints.map(name => name || `${this.waypoints.length + 1}`);
                 console.log("✅ Waypoints chargés depuis le fichier:", this.waypoints);
             } else if (routeData.points && Array.isArray(routeData.points)) {
                     // Nouveau format : noms intégrés dans les points
-                    this.waypoints = routeData.points.map((point, i) => point.name || `Point ${i + 1}`);
+                    this.waypoints = routeData.points.map((point, i) => point.name || `${i + 1}`);
                     console.log("✅ Waypoints extraits depuis les points:", this.waypoints);
             } else {
                 // Créer des noms par défaut si pas de waypoints dans le JSON
                 routeData.points.forEach((point, index) => {
-                    this.waypoints.push(`Point ${index + 1}`);
+                    this.waypoints.push(`${index + 1}`);
                 });
                 console.log("✅ Waypoints par défaut créés (ancien fichier sans waypoints)");
             }
@@ -2698,7 +2712,7 @@ handleKeyPress: function(e) {
                 }).addTo(this.map);
 
                 // Récupérer le nom du waypoint depuis le fichier JSON
-                const waypointName = point.name || `Point ${index + 1}`;
+                const waypointName = point.name || `${index + 1}`;
 
                 // Ajouter un popup au marqueur avec le nom personnalisé
                 const popupContent = isDraggable
@@ -2785,7 +2799,7 @@ handleKeyPress: function(e) {
                         }
 
                         // Récupérer le nom du waypoint
-                        const waypointName = this.waypoints[markerIndex] || `Point ${markerIndex + 1}`;
+                        const waypointName = this.waypoints[markerIndex] || `${markerIndex + 1}`;
 
                         // Créer un popup personnalisé avec boutons de renommage et suppression
                         const contextMenu = `
@@ -3518,15 +3532,28 @@ const loadHistory = async () => {
 
         if (!Array.isArray(files) || files.length === 0) {
             showMessage("Aucun fichier de parcours disponible.");
+            return;
         }
 
         const selector = document.getElementById("fileSelector");
         selector.innerHTML = "";
         files.forEach(file => {
             const option = document.createElement("option");
-            option.value = file;
-            baseName = file.split('.').slice(0, -1).join('.');
-            option.textContent = baseName;
+
+            // La valeur envoyée au backend
+            option.value = file.name;
+
+            // Nom sans extension
+            const baseName = file.name.replace(/\.json$/i, "");
+            const created = new Date(file.created).toLocaleString("fr-FR");
+
+            // Texte affiché (tu peux ajouter la date si tu veux)
+            option.textContent = `${created} — ${baseName}`;
+
+            // Optionnel : stocker les dates dans des data-attributes
+            option.dataset.created = file.created;
+            option.dataset.modified = file.modified;
+
             selector.appendChild(option);
         });
 
@@ -3590,11 +3617,24 @@ async function loadRouteList() {
 
         const selector = document.getElementById("routeSelector");
         selector.innerHTML = "";
+
         files.forEach(file => {
             const option = document.createElement("option");
-            option.value = file;
-            const baseName = file.split('.').slice(0, -1).join('.');
-            option.textContent = baseName;
+
+            // La valeur envoyée au backend
+            option.value = file.name;
+
+            // Nom sans extension
+            const baseName = file.name.replace(/\.json$/i, "");
+            const created = new Date(file.created).toLocaleString("fr-FR");
+
+            // Texte affiché (tu peux ajouter la date si tu veux)
+            option.textContent = `${created} — ${baseName}`;
+
+            // Optionnel : stocker les dates dans des data-attributes
+            option.dataset.created = file.created;
+            option.dataset.modified = file.modified;
+
             selector.appendChild(option);
         });
 
