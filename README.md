@@ -4,7 +4,7 @@ Outil de navigation NMEA 2000 avec interface PyQt5 et serveur local Quart pour l
 - Lecture du bus CAN/NMEA2000 via un adaptateur CANUSB
 - Visualisation en temps réel (table, instruments, carte embarquée)
 - Export/import CSV (conversion NMEA2000)
-- Aide intégrée (mini-site Flask)
+- Aide intégrée
 - Build en exécutable Windows via PyInstaller
 
 Ce README remplace et conserve le guide utilisateur existant (section « Guide d’utilisation ») tout en ajoutant les informations techniques demandées.
