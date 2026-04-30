@@ -15,6 +15,9 @@ import win32gui
 import win32con
 import win32api
 import win32process
+import os
+from pathlib import Path
+from datetime import datetime
 import resouce_rc
 
 # Ignorer le warning SIP
@@ -1205,7 +1208,17 @@ class HistoryFileManager:
     def list_json_files():
         """Liste tous les fichiers JSON dans le dossier history"""
         try:
-            files = [f for f in os.listdir(HistoryFileManager.STATIC_FOLDER) if f.endswith('.json')]
+            folder = Path(HistoryFileManager.STATIC_FOLDER)
+            files = []
+
+            for file in folder.glob("*.json"):
+                stat = file.stat()
+
+                files.append({
+                    "name": file.name,
+                    "created": datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
+                })
             return files
         except Exception as error:
             return {"status": "error", "message": str(error)}
@@ -1294,10 +1307,22 @@ class RouteFileManager:
 
     @staticmethod
     def list_json_files():
-        """Liste tous les fichiers JSON dans le dossier routes"""
+        """Liste tous les fichiers JSON dans le dossier routes avec leurs dates"""
         try:
-            files = [f for f in os.listdir(RouteFileManager.STATIC_FOLDER) if f.endswith('.json')]
+            folder = Path(RouteFileManager.STATIC_FOLDER)
+            files = []
+
+            for file in folder.glob("*.json"):
+                stat = file.stat()
+
+                files.append({
+                    "name": file.name,
+                    "created": datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
+                })
+
             return files
+
         except Exception as error:
             return {"status": "error", "message": str(error)}
 
@@ -1664,8 +1689,19 @@ async def load_history():
 async def list_json_files():
     """Route pour lister tous les fichiers JSON d'historique"""
     try:
-        files = HistoryFileManager.list_json_files()
-        return jsonify(files)
+        folder = Path(HistoryFileManager.STATIC_FOLDER)
+        files = []
+
+        for file in folder.glob("*.json"):
+            stat = file.stat()
+
+            files.append({
+                "name": file.name,
+                "created": datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
+            })
+
+        return files
     except Exception as error:
         return jsonify({"status": "error", "message": str(error)}), 500
 
