@@ -1286,7 +1286,7 @@ const measureTool = {
                     <img src="./static/icone/distance.png" alt="Mesure" width="16" height="16">
                 </a>
                 <a href="#" id="toggle-reverse" class="measure-button" title="Inverser la route.">
-                    <img src="./static/icone/reverse.png" alt="Mesure" width="16" height="16">
+                    <img src="./static/icone/reverse.png" alt="Mesure" width="18" height="18">
                 </a>
                 <a href="#" id="saveRouteButton" class="measure-button" title="Sauvegarder la route" >
                     <img src="./static/icone/enregistrer.png" alt="Sauvegarder" width="16" height="16">
