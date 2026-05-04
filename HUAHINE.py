@@ -1905,12 +1905,264 @@ async def wind_json():
         wind_path = resource_path("wind.json")
 
         with open(wind_path, "r", encoding="utf-8") as f:
-            data = f.read()
-        return Response(data, mimetype="application/json")
+            raw = f.read()
+        # Mettre à jour dynamiquement l'heure de référence pour éviter un affichage figé à 06:00 UTC
+        # sans modifier les données de vent elles-mêmes.
+        try:
+            import json as _json
+            from datetime import datetime, timezone
+            data = _json.loads(raw)
+            if isinstance(data, list) and len(data) >= 2:
+                now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+                if isinstance(data[0], dict) and 'header' in data[0]:
+                    data[0]['header']['refTime'] = now_utc
+                if isinstance(data[1], dict) and 'header' in data[1]:
+                    data[1]['header']['refTime'] = now_utc
+                body = _json.dumps(data)
+            else:
+                body = raw
+        except Exception as _e:
+            # En cas d'échec du parsing JSON, renvoyer tel quel
+            print(f"[wind.json] parse/update refTime failed: {_e}")
+            body = raw
+
+        resp = Response(body, mimetype="application/json")
+        # Désactiver toute mise en cache pour éviter des heures figées côté client/proxy
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
     except Exception as e:
         print(f"Erreur chargement wind.json: {e}")
         return Response("{}", mimetype="application/json", status=500)
 
+
+@quart_app.route("/wind_at")
+async def wind_at():
+    """Retourne un JSON vent pour l'heure demandée (paramètre query ?iso=YYYY-MM-DDTHH:MM).
+    - Lit le fichier GRIB "f.grb2" (dans le dossier de ressources)
+    - Sélectionne les champs U/V au timestamp le plus proche de l'heure demandée (UTC)
+    - Renvoie la même structure que /wind.json (2 objets: U puis V)
+    """
+    from datetime import datetime, timezone
+    import json as _json
+    try:
+        iso = request.args.get('iso', '').strip()
+        if not iso:
+            return Response(_json.dumps({"error":"missing iso param"}), mimetype="application/json", status=400)
+        # Parser l'heure demandée en UTC
+        iso_std = iso.replace(' ', 'T')
+        try:
+            # Autoriser formats courts: YYYY-MM-DDTHH ou YYYY-MM-DDTHH:MM
+            if len(iso_std) == 13:  # YYYY-MM-DDTHH
+                iso_std += ":00:00Z"
+            elif len(iso_std) == 16 and iso_std[-3] == ':':  # YYYY-MM-DDTHH:MM
+                iso_std += ":00Z"
+            if iso_std.endswith('Z'):
+                target_dt = datetime.fromisoformat(iso_std.replace('Z', '+00:00'))
+            else:
+                dt = datetime.fromisoformat(iso_std)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                target_dt = dt.astimezone(timezone.utc)
+        except Exception:
+            return Response(_json.dumps({"error":"invalid iso param"}), mimetype="application/json", status=400)
+
+        # Ouvrir le GRIB source
+        import pygrib
+        import numpy as np
+        # Ouverture du GRIB avec repli éventuel sur f2.grb2
+        grib_path = resource_path("f.grb2")
+        grbs = None
+        try:
+            grbs = pygrib.open(grib_path)
+        except Exception as e_open1:
+            alt_path = resource_path("f2.grb2")
+            try:
+                grbs = pygrib.open(alt_path)
+                print(f"[wind_at] f.grb2 indisponible ({e_open1}); utilisation de f2.grb2")
+                grib_path = alt_path
+            except Exception as e_open2:
+                print(f"[wind_at] Impossible d'ouvrir f.grb2 ni f2.grb2: {e_open1} / {e_open2}")
+                return Response(_json.dumps({"error":"grib_open_failed"}), mimetype="application/json", status=500)
+
+        U_CANDIDATES = ["10u", "u", "ugrd"]
+        V_CANDIDATES = ["10v", "v", "vgrd"]
+
+        def select_nearest(grbs_obj, candidates, target_dt):
+            """Select message with validDate at or AFTER target_dt when possible; otherwise closest BEFORE.
+            Keeps same behavior across all candidate shortNames and reports whether selection was future/past.
+            """
+            best_future = None
+            best_future_delta = None  # seconds (>=0)
+            best_future_c = None
+
+            best_past = None
+            best_past_delta = None  # seconds (absolute value of negative delta)
+            best_past_c = None
+
+            for c in candidates:
+                try:
+                    msgs = grbs_obj.select(shortName=c)
+                except Exception:
+                    msgs = []
+                for m in msgs:
+                    try:
+                        valid = m.validDate.replace(tzinfo=timezone.utc)
+                    except Exception:
+                        continue
+                    dsec = (valid - target_dt).total_seconds()
+                    if dsec >= 0:
+                        # candidate in the future or exactly at target; keep the smallest non-negative delta
+                        if best_future is None or dsec < best_future_delta:
+                            best_future = m
+                            best_future_delta = dsec
+                            best_future_c = c
+                    else:
+                        # candidate in the past; keep the closest (largest) negative delta in absolute value
+                        ad = abs(dsec)
+                        if best_past is None or ad < best_past_delta:
+                            best_past = m
+                            best_past_delta = ad
+                            best_past_c = c
+
+            if best_future is not None:
+                print(f"[wind_at] Champ {best_future_c} choisi (>= demande), Δ+≈{(best_future_delta or 0)/3600:.2f}h")
+                return best_future
+            if best_past is not None:
+                print(f"[wind_at] Champ {best_past_c} choisi (< demande), Δ-≈{(best_past_delta or 0)/3600:.2f}h")
+                return best_past
+            return None
+
+        ugrd = select_nearest(grbs, U_CANDIDATES, target_dt)
+        if ugrd is None:
+            return Response(_json.dumps({"error":"U not found"}), mimetype="application/json", status=500)
+        # Tenter d'aligner V sur le même validDate
+        try:
+            v_target = ugrd.validDate.replace(tzinfo=timezone.utc)
+        except Exception:
+            v_target = target_dt
+        vgrd = select_nearest(grbs, V_CANDIDATES, v_target)
+        if vgrd is None:
+            return Response(_json.dumps({"error":"V not found"}), mimetype="application/json", status=500)
+
+        # Construire le JSON (même structure)
+        u_vals = ugrd.values
+        v_vals = vgrd.values
+        ny, nx = u_vals.shape
+
+        lo1 = ugrd['longitudeOfFirstGridPointInDegrees']
+        lo2 = ugrd['longitudeOfLastGridPointInDegrees']
+        la_north = ugrd['latitudeOfFirstGridPointInDegrees']
+        la_south = ugrd['latitudeOfLastGridPointInDegrees']
+        la1 = la_south
+        la2 = la_north
+        dx = (lo2 - lo1) / (nx - 1) if nx > 1 else 0
+        dy = abs((la2 - la1) / (ny - 1)) if ny > 1 else 0
+
+        # Préférer validDate pour l'affichage
+        try:
+            valid_dt = ugrd.validDate.replace(tzinfo=timezone.utc)
+            ref_time_str = valid_dt.strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            ref_time = ugrd['dataDate']
+            ref_hour = ugrd['dataTime'] // 100
+            ref_time_str = f"{str(ref_time)[:4]}-{str(ref_time)[4:6]}-{str(ref_time)[6:]} {ref_hour:02d}:00:00"
+
+        # Adapter l'orientation pour correspondre au frontend (flip vertical/horizontal)
+        u_data = np.flipud(np.fliplr(u_vals)).flatten().tolist()
+        v_data = np.flipud(np.fliplr(v_vals)).flatten().tolist()
+
+        json_data = [
+            {
+                "header": {
+                    "parameterUnit": "m/s",
+                    "parameterNumber": 2,
+                    "parameterNumberName": "eastward_wind",
+                    "parameterCategory": 2,
+                    "nx": nx,
+                    "ny": ny,
+                    "lo1": lo1,
+                    "la1": la1,
+                    "lo2": lo2,
+                    "la2": la2,
+                    "dx": dx,
+                    "dy": dy,
+                    "refTime": ref_time_str
+                },
+                "data": u_data
+            },
+            {
+                "header": {
+                    "parameterUnit": "m/s",
+                    "parameterNumber": 3,
+                    "parameterNumberName": "northward_wind",
+                    "parameterCategory": 2,
+                    "nx": nx,
+                    "ny": ny,
+                    "lo1": lo1,
+                    "la1": la1,
+                    "lo2": lo2,
+                    "la2": la2,
+                    "dx": dx,
+                    "dy": dy,
+                    "refTime": ref_time_str
+                },
+                "data": v_data
+            }
+        ]
+
+        resp = Response(_json.dumps(json_data), mimetype="application/json")
+        # Désactiver la mise en cache pour refléter l'heure demandée à chaque requête
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
+
+    except Exception as e:
+        # Fallback gracieux: en cas d'erreur GRIB, renvoyer le wind.json statique avec refTime calée
+        # sur l'heure demandée (ou à défaut sur l'heure UTC courante), au lieu d'un HTTP 500.
+        try:
+            print(f"/wind_at error: {e} — fallback to static wind.json with adjusted refTime")
+            import json as _json
+            from datetime import datetime, timezone
+            wind_path = resource_path("wind.json")
+            with open(wind_path, "r", encoding="utf-8") as f:
+                raw = f.read()
+            data = _json.loads(raw)
+            if isinstance(data, list) and len(data) >= 2:
+                # Utiliser l'heure demandée si disponible, sinon maintenant UTC
+                try:
+                    iso_arg = request.args.get('iso', '').strip()
+                    iso_std = iso_arg.replace(' ', 'T') if iso_arg else ''
+                    if iso_std.endswith('Z'):
+                        tdt = datetime.fromisoformat(iso_std.replace('Z', '+00:00'))
+                    elif iso_std:
+                        tdt = datetime.fromisoformat(iso_std)
+                        if tdt.tzinfo is None:
+                            tdt = tdt.replace(tzinfo=timezone.utc)
+                        else:
+                            tdt = tdt.astimezone(timezone.utc)
+                    else:
+                        tdt = datetime.now(timezone.utc)
+                except Exception:
+                    tdt = datetime.now(timezone.utc)
+                ref_str = tdt.strftime('%Y-%m-%d %H:%M:%S')
+                if isinstance(data[0], dict) and 'header' in data[0]:
+                    data[0]['header']['refTime'] = ref_str
+                if isinstance(data[1], dict) and 'header' in data[1]:
+                    data[1]['header']['refTime'] = ref_str
+                body = _json.dumps(data)
+            else:
+                body = raw
+            resp = Response(body, mimetype="application/json")
+            resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            resp.headers["Pragma"] = "no-cache"
+            resp.headers["Expires"] = "0"
+            return resp
+        except Exception as ee:
+            print(f"/wind_at fallback failed: {ee}")
+            return Response("{}", mimetype="application/json", status=500)
 
 
 # ********************************************* LANCE L'APPLICATION ****************************************************
