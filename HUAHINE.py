@@ -1912,7 +1912,7 @@ async def wind_json():
             import json as _json
             from datetime import datetime, timezone
             data = _json.loads(raw)
-            if isinstance(data, list) and len(data) >= 2:
+            if isinstance(data, list) and len(data) == 2:
                 now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
                 if isinstance(data[0], dict) and 'header' in data[0]:
                     data[0]['header']['refTime'] = now_utc
@@ -1920,6 +1920,7 @@ async def wind_json():
                     data[1]['header']['refTime'] = now_utc
                 body = _json.dumps(data)
             else:
+                # Multi-heure: ne pas modifier les refTime, renvoyer tel quel
                 body = raw
         except Exception as _e:
             # En cas d'échec du parsing JSON, renvoyer tel quel

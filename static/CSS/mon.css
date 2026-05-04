@@ -458,6 +458,17 @@ strong {
 }
 
 /* ===== BOUTONS D'INFORMATION ===== */
+.vent-container {
+    position: fixed;
+    left: 10px;
+    top: 60%;
+    transform: translateY(-50%);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    align-items: flex-start;
+}
 /* Ces bouton sont contenu dans un container */
 .button-container {
     position: fixed;
@@ -505,11 +516,17 @@ strong {
     color: white !important; /* Couleur quand les infos sont visibles */
 }
 
+/* État actif du bouton météo (ventButton) */
+#ventButton.active {
+    background: #00FF00 !important;
+    color: white !important; /* Couleur quand la météo du vent est visible */
+}
+
 /* ===== BOUTON DE MESURE DE DISTANCE (redéfinition) ===== */
 .measure-button-container {
     position: fixed;
     left: 1px;
-    top: 45%;
+    top: 35%;
     transform: translateY(-50%);
     z-index: 1000;
     display: flex;
