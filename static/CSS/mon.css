@@ -956,3 +956,14 @@ strong {
 .hide-pin .pin-icon {
     display: none !important;
 }
+
+/* ===== Leaflet-Velocity visibility fixes ===== */
+/* Make sure controls at bottom-left are above custom UI */
+.leaflet-bottom.leaflet-left .leaflet-control {
+    z-index: 1200 !important;
+}
+/* Ensure overlay canvas is visible and clickable elements are not blocked */
+.leaflet-overlay-pane canvas {
+    opacity: 1 !important;
+    pointer-events: none; /* wind layer should not block map interactions */
+}

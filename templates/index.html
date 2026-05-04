@@ -4,12 +4,14 @@
     <meta charset="UTF-8">
 
     <title>Cartes Navigation</title>
-    <link href="{{ url_for('static', filename='css/leaflet.css') }}" rel="stylesheet"/>
-    <link href="{{ url_for('static', filename='css/mon.css') }}" rel="stylesheet"/>
+    <link href="{{ url_for('static', filename='CSS/leaflet.css') }}" rel="stylesheet"/>
+    <link href="{{ url_for('static', filename='CSS/mon.css') }}" rel="stylesheet"/>
     <link href="{{ url_for('static', filename='favicon.ico') }}" rel="icon" type="image/x-icon">
+
     <script src="{{ url_for('static', filename='js/leaflet.js') }}"></script>
 
-
+    <link rel="stylesheet" href="{{ url_for('static', filename='CSS/leaflet-windbarb.css') }}" />
+    <script src="{{ url_for('static', filename='js/leaflet-windbarb.min.js') }}"></script>
 </head>
 <body>
 
@@ -30,32 +32,32 @@
 
         <span id="f_raf-button" class="f_raf-button">Demander</span>
         <span id="f_raf-status" class="f_raf-status" style="display:none;">En cours...</span>
-        <h2>️<img src="./static/icone/reseau.png" alt="Configuration" width="22" height="22"> Liste des instruments NMEA 2000</h2>
+        <h2>️<img src="{{ url_for('static', filename='icone/reseau.png') }}" alt="Configuration" width="22" height="22"> Liste des instruments NMEA 2000</h2>
         <ul id="f_config-list"></ul>
   </div>
 </div>
 <!-- Menu sur la gauche -->
 <div class ="button-container">
-    <button class="button" id="mmsiButton" onclick="toggleMMSITable()" title="Afficher la liste des navires AIS détectés">️<img src="./static/icone/bateau.png" alt="Navires MMSI" width="20" height="20"></button>
-    <button class="button" id="aisVisibilityButton" onclick="toggleAISVisibility()" title="Masquer les bateaux AIS sur la carte">️<img src="./static/icone/radar.png" alt="📡" width="20" height="20"></button>
-    <button class="button" id="toggleMenu" title="Afficher la configuration du bateau">️<img src="./static/icone/ancre-de-navire.png" alt="Configuration du bateau" width="16" height="16"></button>
-    <button class="button" id="toggleVent" title="Afficher le cadran de vent">️<img src="./static/icone/wind.png" alt="Vents" width="16" height="16"></button>
-    <button class="button" id="toggleInfoButton" title="Afficher l'historique et les projections">️<img src="./static/icone/courbe.png" alt="Historique" width="16" height="16"></button>
-    <button class="button" id="f_config" title="Afficher la liste des instruments">️<img src="./static/icone/reseau.png" alt="Configuration" width="22" height="22"></button>
+    <button class="button" id="mmsiButton" onclick="toggleMMSITable()" title="Afficher la liste des navires AIS détectés">️<img src="{{ url_for('static', filename='icone/bateau.png') }}" alt="Navires MMSI" width="20" height="20"></button>
+    <button class="button" id="aisVisibilityButton" onclick="toggleAISVisibility()" title="Masquer les bateaux AIS sur la carte">️<img src="{{ url_for('static', filename='icone/radar.png') }}" alt="📡" width="20" height="20"></button>
+    <button class="button" id="toggleMenu" title="Afficher la configuration du bateau">️<img src="{{ url_for('static', filename='icone/ancre-de-navire.png') }}" alt="Configuration du bateau" width="16" height="16"></button>
+    <button class="button" id="toggleVent" title="Afficher le cadran de vent">️<img src="{{ url_for('static', filename='icone/wind.png') }}" alt="Vents" width="16" height="16"></button>
+    <button class="button" id="toggleInfoButton" title="Afficher l'historique et les projections">️<img src="{{ url_for('static', filename='icone/courbe.png') }}" alt="Historique" width="16" height="16"></button>
+    <button class="button" id="f_config" title="Afficher la liste des instruments">️<img src="{{ url_for('static', filename='icone/reseau.png') }}" alt="Configuration" width="22" height="22"></button>
 </div>
 
-<-- Bouton centrer sur le bateau -->
-<button class="center-button" onclick="centerOnBoat()" title="Centrer sur le bateau">️<img src="./static/icone/yeux.png" alt="Centrer" width="16" height="16"></button>
+<!-- Bouton centrer sur le bateau -->
+<button class="center-button" onclick="centerOnBoat()" title="Centrer sur le bateau">️<img src="{{ url_for('static', filename='icone/yeux.png') }}" alt="Centrer" width="16" height="16"></button>
 
 <!-- Voyant vous êtes connecté au NMEA 2000 -->
 <div id="status-indicator" class="status-indicator" title="Inactif : Vous n'êtes pas connecté au NMEA 2000"></div>
 
-<-- Affichage des historiques -->
+<!-- Affichage des historiques -->
 <div class="legend" style="bottom: 165px;">
     <!-- En-tête avec icône -->
     <div class="section-header">
         <h3 style="margin: 0; text-align: center; color: #1e88e5; font-size: 14px;">
-            <img src="./static/icone/courbe.png" alt="Historique" width="16" height="16">
+            <img src="{{ url_for('static', filename='icone/courbe.png') }}" alt="Historique" width="16" height="16">
                 &nbspHISTORIQUE DE NAVIGATION
         </h3>
     </div>
@@ -82,7 +84,7 @@
     <!-- Section Gestion des fichiers -->
     <div class="file-section" style="border: 1px solid #ddd; border-radius: 5px; padding: 10px; margin: 10px 0; background: #f9f9f9;">
         <div style="margin-bottom: 8px;">
-            <label for="filenameInput" style="font-size: 12px; font-weight: bold; color: #333;"> <img src="./static/icone/enregistrer.png" alt="Historique" width="16" height="16">
+            <label for="filenameInput" style="font-size: 12px; font-weight: bold; color: #333;"> <img src="{{ url_for('static', filename='icone/enregistrer.png') }}" alt="Historique" width="16" height="16">
                     &nbspNom du parcours:
             </label>
             <input type="text" id="filenameInput" placeholder="Ex: Frioul_19_9_2025" style="width: 95%; padding: 6px; margin-top: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 12px;">
@@ -90,25 +92,25 @@
 
         <div class="file-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
             <button onclick="saveHistory()" class="action-btn save-btn" style="background: #2196F3; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">
-                <img src="./static/icone/disquette.png" alt="Historique" width="16" height="16">
+                <img src="{{ url_for('static', filename='icone/disquette.png') }}" alt="Historique" width="16" height="16">
                     &nbspSauver
             </button>
 
             <button onclick="loadHistory()" class="action-btn load-btn" style="background: #FF9800; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">
-                <img src="./static/icone/oeil.png" alt="Historique" width="16" height="16">
+                <img src="{{ url_for('static', filename='icone/oeil.png') }}" alt="Historique" width="16" height="16">
                     &nbspCharger
             </button>
         </div>
 
         <button id="bouton" onclick="clearTrace()" class="action-btn clear-btn" style="background: #9E9E9E; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 8px; font-size: 11px;">
-            <img src="./static/icone/poubelle.png" alt="Historique" width="16" height="16">
+            <img src="{{ url_for('static', filename='icone/poubelle.png') }}" alt="Historique" width="16" height="16">
                 &nbspEffacer la trace
         </button>
     </div>
 
     <!-- Section Statistiques -->
     <div id="trackStats" class="stats-section" style="border: 1px solid #ddd; border-radius: 5px; padding: 10px; margin: 10px 0; background: #f0f8ff;">
-        <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #1e88e5; text-align: center;"><img src="./static/icone/statistique.webp" alt="Historique" width="16" height="16"> STATISTIQUES</h4>
+        <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #1e88e5; text-align: center;"><img src="{{ url_for('static', filename='icone/statistique.webp') }}" alt="Historique" width="16" height="16"> STATISTIQUES</h4>
         <div id="totalDistanceInfo" style="font-size: 11px; color: #333; padding: 2px 0; text-align: center;">Distance: -- NM</div>
         <div id="averageSpeedInfo" style="font-size: 11px; color: #333; padding: 2px 0; text-align: center;">Vitesse moy.: -- nœuds</div>
         <div id="totalTimeInfo" style="font-size: 11px; color: #333; padding: 2px 0; text-align: center;">Temps passé: --</div>
@@ -119,7 +121,7 @@
     <div class="projection-section" style="border: 1px solid #ddd; border-radius: 5px; padding: 10px; margin: 10px 0; background: #f0f8ff;">
         <div class="section-header">
             <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #1e88e5; text-align: center;">
-                <img src="./static/icone/projection.png" alt="Historique" width="16" height="16">
+                <img src="{{ url_for('static', filename='icone/projection.png') }}" alt="Historique" width="16" height="16">
                     PROJECTION DE TRAJECTOIRE
             </h4>
         </div>
@@ -131,7 +133,7 @@
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
           <label for="projectionTime"
                  style="font-size: 11px; font-weight: bold; color: #333; white-space: nowrap;">
-            <img src="./static/icone/minuteur.png" alt="Historique" width="16" height="16">
+            <img src="{{ url_for('static', filename='icone/minuteur.png') }}" alt="Historique" width="16" height="16">
             Durée:
           </label>
           <div style="display: flex; align-items: center; gap: 4px;">
@@ -160,7 +162,7 @@
     background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
     <div style="background:white; padding:20px; border-radius:8px; min-width:300px; max-width:500px;">
         <h3 style="margin-top: 0; color: #1e88e5;">
-            <img src="./static/icone/oeil.png" alt="Historique" width="20" height="20">
+            <img src="{{ url_for('static', filename='icone/oeil.png') }}" alt="Historique" width="20" height="20">
             Charger un historique
         </h3>
 
@@ -184,7 +186,7 @@
 <div id="routeModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 10000;">
     <div style="background: white; padding: 20px; border-radius: 8px; min-width: 300px; max-width: 500px;">
         <h3 style="margin-top: 0; color: #1e88e5;">
-            <img src="./static/icone/charger.png" alt="Route" width="20" height="20">
+            <img src="{{ url_for('static', filename='icone/charger.png') }}" alt="Route" width="20" height="20">
             Charger une route
         </h3>
 
@@ -213,7 +215,7 @@
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <h3 style="margin: 0; color: #1e88e5;">
-                <img src="./static/icone/bateau.png" alt="Navires" width="20" height="20">
+                <img src="{{ url_for('static', filename='icone/bateau.png') }}" alt="Navires" width="20" height="20">
                 &nbsp;Navires AIS Détectés
             </h3>
             <button onclick="closeMMSIModal()" class="close-button">

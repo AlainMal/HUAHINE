@@ -1897,6 +1897,22 @@ async def cleanup(window):
     print("Nettoyage terminé")
     sys.exit(0)
 
+from quart import Response
+
+@quart_app.route("/wind.json")
+async def wind_json():
+    try:
+        wind_path = resource_path("wind.json")
+
+        with open(wind_path, "r", encoding="utf-8") as f:
+            data = f.read()
+        return Response(data, mimetype="application/json")
+    except Exception as e:
+        print(f"Erreur chargement wind.json: {e}")
+        return Response("{}", mimetype="application/json", status=500)
+
+
+
 # ********************************************* LANCE L'APPLICATION ****************************************************
 if __name__ == "__main__":
     # Rediriger les print vers un fichier de log SEULEMENT pour l'exe.

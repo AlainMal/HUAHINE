@@ -406,6 +406,199 @@ setInterval(() => {
         });
 }, 2000);
 
+// Définir un décalage vertical par défaut pour corriger un éventuel offset de la grille
+// Valeur négative = décale vers le Sud; positive = vers le Nord
+if (typeof window !== 'undefined' && typeof window.WIND_BARBS_LAT_OFFSET_DEG !== 'number') {
+    // Valeur négative = décale vers le Sud; ajustée à ≈ -1.01° pour compenser un décalage observé d'environ +1.01° vers le Nord
+    window.WIND_BARBS_LAT_OFFSET_DEG = -0.0;
+    console.log('WIND_BARBS_LAT_OFFSET_DEG par défaut =', window.WIND_BARBS_LAT_OFFSET_DEG);
+}
+
+function gridToWindBarbs(wind) {
+    const u = wind[0].data;
+    const v = wind[1].data;
+    const h = wind[0].header;
+
+    const points = [];
+
+    // Échantillonnage pour alléger l'affichage si la grille est dense
+    const stepX = Math.max(1, Math.floor(h.nx / 60)); // ~60 colonnes max
+    const stepY = Math.max(1, Math.floor(h.ny / 40)); // ~40 lignes max
+
+    // Détecter l'orientation géographique entre les bornes
+    const lonIncreasing = (h.lo2 - h.lo1) >= 0 ? true : false;
+    const latIncreasing = (h.la2 - h.la1) >= 0 ? true : false;
+
+    // Log d'orientation pour diagnostic une seule fois par appel
+    try {
+        console.log('GRIB extent:', { lo1: h.lo1, lo2: h.lo2, la1: h.la1, la2: h.la2, nx: h.nx, ny: h.ny, lonIncreasing, latIncreasing });
+    } catch (e) {}
+
+    // Surcharges utilisateur pour inversions manuelles sans redéploiement
+    // Si non définies, activer par défaut l'inversion gauche/droite et haut/bas pour corriger l'effet observé
+    if (typeof window !== 'undefined') {
+        if (typeof window.WIND_BARBS_FLIP_LR === 'undefined') {
+            window.WIND_BARBS_FLIP_LR = true;
+        }
+        if (typeof window.WIND_BARBS_FLIP_TB === 'undefined') {
+            window.WIND_BARBS_FLIP_TB = true;
+        }
+    }
+    const forceFlipLR = (typeof window !== 'undefined' && window.WIND_BARBS_FLIP_LR === true);
+    const forceFlipTB = (typeof window !== 'undefined' && window.WIND_BARBS_FLIP_TB === true);
+    try { console.log('Wind barbs flips:', { forceFlipLR, forceFlipTB }); } catch(e) {}
+
+    for (let j = 0; j < h.ny; j++) {
+        for (let i = 0; i < h.nx; i++) {
+            // Interpolation robuste entre les bornes, indépendante du signe de dx/dy et du mode de scan
+            let tX = (i + 0.5) / h.nx; // centre de cellule en X
+            let tY = (j + 0.5) / h.ny; // centre de cellule en Y
+
+            // Appliquer éventuellement une inversion manuelle des axes pour corriger l'effet miroir (bas-gauche ↔ haut-droite)
+            if (forceFlipLR) tX = 1 - tX; // inverse gauche/droite
+            if (forceFlipTB) tY = 1 - tY; // inverse haut/bas
+
+            // Interpole la latitude de la1 -> la2
+            let lat = h.la1 + tY * (h.la2 - h.la1);
+
+            // Interpole la longitude en tenant compte d'un éventuel franchissement de l'antiméridien
+            let dlon = h.lo2 - h.lo1;
+            if (Math.abs(dlon) > 180) {
+                dlon = dlon > 0 ? dlon - 360 : dlon + 360;
+            }
+            let rawLng = h.lo1 + tX * dlon;
+            // Normaliser la longitude en [-180, 180]
+            rawLng = ((rawLng + 540) % 360) - 180;
+
+            // Décalage manuel optionnel pour corriger un offset visuel connu
+            const manualLatOffset = (typeof window !== 'undefined' && typeof window.WIND_BARBS_LAT_OFFSET_DEG === 'number') ? window.WIND_BARBS_LAT_OFFSET_DEG : 0;
+            lat += manualLatOffset;
+
+            // Calculer l'index des données en fonction de l'orientation réelle
+            let iData = (lonIncreasing ? i : (h.nx - 1 - i));
+            let jData = (latIncreasing ? j : (h.ny - 1 - j));
+            // Important: on n'applique PAS les flips manuels sur l'index des données,
+            // uniquement sur les coordonnées (tX/tY). Ainsi, on effectue une rotation visuelle
+            // de la grille sans réassigner les valeurs U/V à d'autres cellules.
+            const idx = jData * h.nx + iData;
+
+            const uu = u[idx];
+            const vv = v[idx];
+
+            // Filtrer les valeurs manquantes/NaN
+            if (!isFinite(uu) || !isFinite(vv)) {
+                continue;
+            }
+
+            // Vitesse en m/s -> convertir en noeuds pour l'affichage des barbules
+            const speed_ms = Math.hypot(uu, vv);
+            if (!isFinite(speed_ms)) {
+                continue;
+            }
+            const speed = speed_ms * 1.943844; // m/s -> kt
+
+            // Convention météorologique (direction d'où vient le vent)
+            const dir = (Math.atan2(-uu, -vv) * 180 / Math.PI + 360) % 360;
+
+            // Normaliser la longitude en [-180, 180]
+            const lng = ((rawLng + 540) % 360) - 180;
+
+            // Appliquer l'échantillonnage
+            if ((i % stepX === 0) && (j % stepY === 0)) {
+                points.push({
+                    lat: lat,
+                    lon: lng, // leaflet-windbarb attend généralement 'lon'
+                    lng: lng, // conserver aussi 'lng' par compatibilité Leaflet
+                    speed: speed,
+                    dir: dir // Propriété attendue par leaflet-windbarb
+                });
+            }
+        }
+    }
+
+    return points;
+}
+
+fetch("/wind.json")
+  .then(r => r.json())
+  .then(w => {
+      const barbs = gridToWindBarbs(w);
+      console.log("wind barbs points:", barbs.length);
+      if (barbs.length > 0) {
+          console.log("sample wind barbs:", barbs.slice(0, 3));
+      }
+
+      // Créer un pane dédié au-dessus des tuiles pour garantir la visibilité
+      if (!map.getPane('windbarbs')) {
+          map.createPane('windbarbs');
+          const p = map.getPane('windbarbs');
+          p.style.zIndex = 700; // placer au-dessus des autres overlays
+          p.style.pointerEvents = 'none'; // ne pas bloquer les clics
+      }
+
+      // Fallback de test si aucun point valide
+      const dataForLayer = (barbs.length > 0) ? barbs : (function(){
+          const c = map.getCenter ? map.getCenter() : { lat: 0, lng: 0 };
+          console.warn("Aucune barbule issue des données — ajout d'un point test");
+          return [{ lat: c.lat, lon: c.lng, lng: c.lng, dir: 90, speed: 15 }];
+      })();
+
+      // Certaines versions du plugin n'exposent pas L.windBarbLayer, on crée donc un LayerGroup de marqueurs L.windBarb
+      const group = L.layerGroup([], { pane: 'windbarbs' });
+      const opts = { size: 28, color: "#000", fillColor: "#000", strokeColor: "#000", opacity: 0.95, pane: 'windbarbs', interactive: false };
+      dataForLayer.forEach(p => {
+          const ll = [p.lat, (p.lon ?? p.lng)];
+          try {
+              if (typeof L.windBarb === 'function') {
+                  const m = L.windBarb(ll, p.speed, p.dir, opts);
+                  group.addLayer(m);
+              } else if (typeof L.WindBarb === 'function') {
+                  const m = new L.WindBarb(ll, p.speed, p.dir, opts);
+                  group.addLayer(m);
+              }
+          } catch (e) {
+              console.warn('windBarb creation failed at', p, e);
+          }
+      });
+
+      console.log('wind barbs via plugin:', group.getLayers().length);
+
+      // Si aucune barbule via plugin, basculer sur un rendu de secours en SVG
+      if (group.getLayers().length === 0) {
+          console.warn('Plugin leaflet-windbarb non disponible — utilisation du rendu de secours SVG');
+          const size = opts.size || 22;
+          dataForLayer.forEach(p => {
+              const ll = [p.lat, (p.lon ?? p.lng)];
+              const color = opts.color || '#000';
+              // Dessine uniquement la hampe + barbules (sans flèche)
+              const kt = Math.max(0, Math.floor((p.speed||0) / 5));
+              const ticks = Array.from({length: Math.min(3, kt)}, (_, i) => {
+                  const y = 10 + i * 3;
+                  return `<line x1="12" y1="${y+2}" x2="16" y2="${y}" stroke="${color}" stroke-width="1" stroke-linecap="round"/>`;
+              }).join('');
+              const svg = `\n<svg width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">\n  <g transform="rotate(${p.dir},12,12)">\n    <line x1="12" y1="20" x2="12" y2="6" stroke="${color}" stroke-width="2" stroke-linecap="round"/>\n    ${ticks}\n  </g>\n</svg>`;
+              const icon = L.divIcon({
+                  className: 'windbarb-fallback',
+                  html: svg,
+                  iconSize: [size, size],
+                  iconAnchor: [Math.round(size/2), Math.round(size*0.85)]
+              });
+              const marker = L.marker(ll, { icon, pane: 'windbarbs', interactive: false });
+              group.addLayer(marker);
+          });
+      }
+
+      if (group.getLayers().length === 0) {
+          console.warn('Aucune barbule n\'a pu être créée (même en secours).');
+      }
+      group.addTo(map);
+      window._windBarbLayer = group;
+  })
+  .catch(err => {
+      console.error("Erreur chargement wind.json ou windBarbLayer:", err);
+  });
+
+
 // ==============================================
 // 5. ÉLÉMENTS DE LA CARTE (MARQUEURS, LIGNES)
 // ==============================================
