@@ -1003,8 +1003,9 @@ async function loadWind(desiredOverride){
       const shaftLen  = shaftBotY - shaftTopY;
       const maxBars   = Math.max(0, Math.floor((shaftLen - 2) / spacing));
       const seq = Array(n10).fill('L').concat(Array(n5).fill('S')).slice(0, maxBars);
-      let yAlong = shaftTopY + 1;
+      let yAlong = shaftTopY + 2; // première barbule légèrement sous la pointe pour éviter tout rognage
       const tickLines = [];
+      const snap = (n) => Math.round(n) + 0.5; // aligner sur 0.5 px pour des traits 1px nets
       for (let k = 0; k < seq.length; k++) {
         const isLong = seq[k] === 'L';
         const dx = isLong ? dxLong : dxShort;
@@ -1013,10 +1014,10 @@ async function loadWind(desiredOverride){
         const y1 = yAlong;
         const x2 = shaftX + dx;
         const y2 = yAlong - dy;
-        tickLines.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="1" stroke-linecap="round"/>`);
+        tickLines.push(`<line x1="${snap(x1)}" y1="${snap(y1)}" x2="${snap(x2)}" y2="${snap(y2)}" stroke="${color}" stroke-width="1" stroke-linecap="round"/>`);
         yAlong += spacing;
       }
-      const svg = `\n<svg width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">\n  <g transform="rotate(${applyDir},12,12)">\n    <line x1="${shaftX}" y1="${shaftBotY}" x2="${shaftX}" y2="${shaftTopY}" stroke="${color}" stroke-width="1" stroke-linecap="round"/>\n    ${tickLines.join('')}\n  </g>\n</svg>`;
+      const svg = `\n<svg width="${size}" height="${size}" viewBox="0 -8 24 32" xmlns="http://www.w3.org/2000/svg">\n  <g transform="rotate(${applyDir},12,12)">\n    <line x1="${shaftX}" y1="${shaftBotY}" x2="${shaftX}" y2="${shaftTopY}" stroke="${color}" stroke-width="1" stroke-linecap="round"/>\n    ${tickLines.join('')}\n  </g>\n</svg>`;
       const icon = L.divIcon({
         className: 'windbarb-fallback',
         html: svg,
