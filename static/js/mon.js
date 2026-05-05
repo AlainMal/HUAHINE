@@ -765,12 +765,7 @@ async function loadWind(desiredOverride){
       meta.style.pointerEvents = 'none';
       document.body.appendChild(meta);
     }
-    if (meta) {
-      const src = (typeof window !== 'undefined' && window.WIND_LAST_SOURCE) ? window.WIND_LAST_SOURCE : 'inconnu';
-      meta.innerHTML = refUtcStr
-        ? (`Vent — Source: <b>${src}</b><br/>refTime UTC: <b>${refUtcStr}</b><br/>Heure locale: <b>${refLocalStr}</b>`)
-        : (`Vent — Source: <b>${src}</b><br/>refTime indisponible`);
-    }
+
 
     // Panneau de sélection d'heure (création si absent, sinon mise à jour valeur)
     let timeCtl = document.getElementById('wind-time-ctrl');
@@ -804,7 +799,7 @@ async function loadWind(desiredOverride){
       timeCtl.id = 'wind-time-ctrl';
       timeCtl.style.position = 'fixed';
       timeCtl.style.right = '8px';
-      timeCtl.style.top = '140px';
+      timeCtl.style.top = '100px';
       timeCtl.style.zIndex = '1000';
       timeCtl.style.background = 'rgba(255,255,255,0.85)';
       timeCtl.style.border = '1px solid #ccc';
@@ -821,14 +816,11 @@ async function loadWind(desiredOverride){
         <div style="margin-top:6px; display:flex; gap:6px; justify-content:flex-end;">
           <button id="wind-apply" style="font-size:11px; padding:2px 6px;">Appliquer</button>
           <button id="wind-now" style="font-size:11px; padding:2px 6px;">Maintenant</button>
-          <button id="wind-refresh" style="font-size:11px; padding:2px 6px;">Rafraîchir</button>
+          
         </div>`;
       document.body.appendChild(timeCtl);
       // Handlers (sans rechargement global)
-      document.getElementById('wind-refresh').addEventListener('click', function(){
-        try { console.log('[WIND] Rafraîchir (manuel)'); } catch(e) {}
-        try { refreshMapView(); } catch(e) {}
-      });
+
       document.getElementById('wind-apply').addEventListener('click', async function(){
         const inp = document.getElementById('wind-dt');
         const v = inp.value;
