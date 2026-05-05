@@ -130,7 +130,7 @@
     fontFamily: baseFont,
     fontSize: baseSize,
     fontWeight: baseWeight,
-    color: 'blue',
+    color: '#FF0000',
     minWidth: '110px',
     textAlign: 'center'
   });
@@ -155,7 +155,7 @@
     fontFamily: baseFont,
     fontSize: baseSize,
     fontWeight: baseWeight,
-    color: 'blue',
+    color: '#35530E',
     minWidth: '110px',
     textAlign: 'center'
   });

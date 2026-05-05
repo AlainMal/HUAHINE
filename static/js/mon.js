@@ -5139,7 +5139,7 @@ window.toggleVent = async function() {
       try { map.removeLayer(layer); } catch(e) {}
       if (btn) {
         btn.classList.remove('active');
-        btn.title = "Afficher la météo du vent";
+        btn.title = "Afficher la météo";
       }
       // Masquer aussi les panneaux d'info/heure du vent (haut droite)
       try {
@@ -5179,7 +5179,7 @@ window.toggleVent = async function() {
 
     if (btn) {
       btn.classList.add('active');
-      btn.title = "Masquer la météo du vent";
+      btn.title = "Masquer la météo";
     }
     if (typeof window !== 'undefined') window.AppState = window.AppState || {};
     if (window.AppState) window.AppState.isWindLayerVisible = true;
