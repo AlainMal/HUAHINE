@@ -435,6 +435,9 @@ function refreshMapView() {
     } catch(e) { /* ignore */ }
 }
 
+// ==============================================
+// METEO ..........................
+// ==============================================
 function gridToWindBarbs(wind) {
     const u = wind[0].data;
     const v = wind[1].data;
@@ -810,7 +813,7 @@ async function loadWind(desiredOverride){
       timeCtl.style.pointerEvents = 'auto';
       timeCtl.innerHTML = `
         <div style="display:flex; align-items:center; gap:6px;">
-          <label for="wind-dt" style="white-space:nowrap;">Heure vent:</label>
+          <label for="wind-dt" style="white-space:nowrap;"></label>
           <input id="wind-dt" type="datetime-local" style="font-size:11px; padding:2px;" />
         </div>
         <div style="margin-top:6px; display:flex; gap:6px; justify-content:flex-end;">
@@ -1009,7 +1012,7 @@ async function loadWind(desiredOverride){
         tickLines.push(`<line x1="${snap(x1)}" y1="${snap(y1)}" x2="${snap(x2)}" y2="${snap(y2)}" stroke="${color}" stroke-width="1" stroke-linecap="round"/>`);
         yAlong += spacing;
       }
-      const svg = `\n<svg width="${size}" height="${size}" viewBox="0 -8 24 32" xmlns="http://www.w3.org/2000/svg">\n  <g transform="rotate(${applyDir},12,12)">\n    <line x1="${shaftX}" y1="${shaftBotY}" x2="${shaftX}" y2="${shaftTopY}" stroke="${color}" stroke-width="1" stroke-linecap="round"/>\n    ${tickLines.join('')}\n  </g>\n</svg>`;
+      const svg = `\n<svg width="${size}" height="${size}" viewBox="0 -8 24 32" xmlns="http://www.w3.org/2000/svg" style="overflow:visible" overflow="visible">\n  <g transform="rotate(${applyDir},12,12)">\n    <line x1="${shaftX}" y1="${shaftBotY}" x2="${shaftX}" y2="${shaftTopY}" stroke="${color}" stroke-width="1" stroke-linecap="round"/>\n    ${tickLines.join('')}\n  </g>\n</svg>`;
       const icon = L.divIcon({
         className: 'windbarb-fallback',
         html: svg,
