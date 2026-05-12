@@ -6,6 +6,7 @@ __pycache__/
 # Environnements virtuels
 .venv/
 venv/
+dist/
 
 # Fichiers générés
 .exe

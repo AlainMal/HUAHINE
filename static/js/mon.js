@@ -515,11 +515,24 @@ function gridToWindBarbs(wind) {
             }
 
             // Vitesse en m/s -> convertir en noeuds pour l'affichage des barbules
-            const speed_ms = Math.hypot(uu, vv);
+            // On calcule systématiquement la vitesse moyenne (à partir de U/V) et, si présent,
+            // la vitesse de rafale à partir du champ des rafales. La vitesse utilisée pour
+            // dessiner la barbule dépend du mode (vent moyen vs rafales), mais on stocke les deux
+            // dans chaque point pour pouvoir les afficher dans le popup.
+            const avg_ms = Math.hypot(uu, vv);
+            const gust_ms_val = (typeof window !== 'undefined' && Array.isArray(window._gustArray)) ? window._gustArray[idx] : undefined;
+
+            let speed_ms = avg_ms;
+            const useGust = (typeof window !== 'undefined' && window.WIND_USE_GUST === true && Array.isArray(window._gustArray));
+            if (useGust && isFinite(gust_ms_val)) {
+                speed_ms = gust_ms_val; // champs de rafales exprimé en m/s
+            }
             if (!isFinite(speed_ms)) {
                 continue;
             }
-            const speed = speed_ms * 1.943844; // m/s -> kt
+            const speed = speed_ms * 1.943844; // m/s -> kt (pour le rendu de la barbule)
+            const avgKt = isFinite(avg_ms) ? (avg_ms * 1.943844) : undefined;
+            const gustKt = isFinite(gust_ms_val) ? (gust_ms_val * 1.943844) : undefined;
 
             // Convention météorologique (direction d'où vient le vent)
             const dir = (Math.atan2(-uu, -vv) * 180 / Math.PI + 360) % 360;
@@ -534,7 +547,10 @@ function gridToWindBarbs(wind) {
                     lon: lng, // leaflet-windbarb attend généralement 'lon'
                     lng: lng, // conserver aussi 'lng' par compatibilité Leaflet
                     speed: speed,
-                    dir: dir // Propriété attendue par leaflet-windbarb
+                    dir: dir, // Propriété attendue par leaflet-windbarb
+                    _idx: idx, // index linéaire de la cellule dans les tableaux U/V/rafales
+                    avgKt: avgKt,
+                    gustKt: gustKt
                 });
             }
         }
@@ -661,30 +677,48 @@ async function loadWind(desiredOverride){
     }
   }
 
-  // Si le fichier statique contient plusieurs pas de temps, regrouper par refTime et sélectionner la paire U/V
+  // Si le fichier statique contient plusieurs pas de temps, regrouper par heure effective (validTime si dispo) et sélectionner la paire U/V (+ rafales si présentes)
   try {
     if (Array.isArray(w) && w.length > 2) {
-      const groups = new Map(); // refTime => {U:obj, V:obj}
-      for (const it of w) {
+      const wAll = w; // conserver la liste complète pour recherche de rafales proches si besoin
+      // Heure effective: header.validTime si présente; sinon refTime + forecastTime; sinon refTime
+      function effTimeStr(hdr){
+        try {
+          if (!hdr) return '';
+          if (hdr.validTime) return String(hdr.validTime);
+          const rt = hdr.refTime;
+          const ft = (hdr.forecastTime != null) ? Number(hdr.forecastTime) : null;
+          if (rt && ft != null && !isNaN(ft)) {
+            const d = new Date(String(rt).replace(' ', 'T') + 'Z');
+            if (!isNaN(d)) {
+              const d2 = new Date(d.getTime() + ft*3600*1000);
+              return d2.toISOString().replace('T',' ').replace(/\.\d{3}Z$/,'');
+            }
+          }
+          return String(rt || '');
+        } catch(_e){ return String((hdr && hdr.refTime) || ''); }
+      }
+      const groups = new Map(); // effTime => {U:obj, V:obj, G:obj}
+      for (const it of wAll) {
         if (!it || !it.header) continue;
-        const rt = it.header.refTime || '';
-        const key = String(rt);
-        if (!groups.has(key)) groups.set(key, { U: null, V: null, ref: key });
+        const key = effTimeStr(it.header);
+        if (!groups.has(key)) groups.set(key, { U: null, V: null, G: null, time: key });
         const g = groups.get(key);
         const name = (it.header.parameterNumberName || '').toLowerCase();
         const pnum = it.header.parameterNumber;
         if (name.includes('eastward') || pnum === 2) g.U = g.U || it;
         else if (name.includes('northward') || pnum === 3) g.V = g.V || it;
+        else if (name.includes('gust')) g.G = g.G || it;
       }
       // Construire la liste des paires complètes
       const pairs = [];
-      for (const [rt, g] of groups.entries()) {
+      for (const [t, g] of groups.entries()) {
         if (g.U && g.V) {
-          pairs.push({ refTime: rt, U: g.U, V: g.V });
+          pairs.push({ time: t, U: g.U, V: g.V, G: g.G || null });
         }
       }
       if (pairs.length > 0) {
-        // Sélectionner la refTime la plus proche de l'heure désirée (priorité aux échéances futures)
+        // Sélectionner l'heure la plus proche de l'heure désirée (priorité aux échéances futures)
         const desiredStr = desired;
         let target = null;
         try {
@@ -697,7 +731,7 @@ async function loadWind(desiredOverride){
         let bestPast = null, bestPastDelta = Infinity;
         for (const p of pairs) {
           let d = null;
-          try { d = new Date(String(p.refTime).replace(' ', 'T') + 'Z'); } catch(_e) {}
+          try { d = new Date(String(p.time).replace(' ', 'T') + 'Z'); } catch(_e) {}
           if (!d || isNaN(d)) continue;
           const dsec = (d.getTime() - tUTC.getTime())/1000;
           if (dsec >= 0) {
@@ -710,9 +744,46 @@ async function loadWind(desiredOverride){
         const chosen = bestFuture || bestPast || pairs[0];
         if (chosen) {
           w = [chosen.U, chosen.V];
-          try { console.log('[WIND] multi-heure (static): ref choisie =', chosen.refTime, 'pairs=', pairs.length); } catch(e) {}
+          if (typeof window !== 'undefined') {
+            if (chosen.G && chosen.G.data && Array.isArray(chosen.G.data)) {
+              window._gustArray = chosen.G.data;
+            } else {
+              // Aucune rafale à heure strictement identique: chercher la plus proche en temps
+              try {
+                const desiredRef = new Date(String(chosen.time).replace(' ', 'T') + 'Z');
+                let bestG = null, bestD = Infinity;
+                for (const it2 of wAll) {
+                  try {
+                    if (!it2 || !it2.header) continue;
+                    const name2 = String(it2.header.parameterNumberName || '').toLowerCase();
+                    if (!name2.includes('gust')) continue;
+                    const t2s = effTimeStr(it2.header);
+                    const rt2 = t2s ? new Date(String(t2s).replace(' ', 'T') + 'Z') : null;
+                    if (!rt2 || isNaN(rt2)) continue;
+                    const d = Math.abs(rt2.getTime() - desiredRef.getTime());
+                    if (d < bestD) { bestD = d; bestG = it2; }
+                  } catch(_eg2) { /* ignore */ }
+                }
+                window._gustArray = (bestG && bestG.data && Array.isArray(bestG.data)) ? bestG.data : null;
+                try { console.log('[WIND] gust nearest match used:', !!bestG, 'Δms=', bestD); } catch(_el) {}
+              } catch(_eNearest) {
+                window._gustArray = null;
+              }
+            }
+          }
+          try { console.log('[WIND] multi-heure (static): time choisie =', chosen.time, 'pairs=', pairs.length, 'gust-chosen:', !!(chosen.G), 'gust-present:', !!(typeof window!=='undefined' && window._gustArray)); } catch(e) {}
         }
       }
+    } else if (Array.isArray(w) && (w.length === 2 || w.length === 3)) {
+      // Cas simple U/V (+ éventuellement gust en 3e entrée)
+      try {
+        const maybeGust = w.find(it => it && it.header && String(it.header.parameterNumberName||'').toLowerCase().includes('gust'));
+        if (typeof window !== 'undefined') {
+          window._gustArray = (maybeGust && maybeGust.data && Array.isArray(maybeGust.data)) ? maybeGust.data : null;
+        }
+      } catch(_eg) {}
+    } else {
+      if (typeof window !== 'undefined') window._gustArray = null;
     }
   } catch(e) {
     console.warn('[WIND] multi-heure parsing failed:', e);
@@ -737,18 +808,34 @@ async function loadWind(desiredOverride){
     } catch(_eStats) {}
   }
 
-  // Afficher/mettre à jour les métadonnées temporelles (refTime)
+  // Afficher/mettre à jour les métadonnées temporelles (validTime si disponible)
   try {
     const hdr = (Array.isArray(w) && w[0] && w[0].header) ? w[0].header : null;
-    const refUtcStr = hdr && hdr.refTime ? hdr.refTime : null;
-    let refLocalStr = '';
-    if (refUtcStr) {
-      const d = new Date(refUtcStr.replace(' ', 'T') + 'Z');
-      if (!isNaN(d)) refLocalStr = d.toLocaleString();
-      console.log('[WIND] refTime (UTC):', refUtcStr, ' | local:', refLocalStr);
+    function effTimeStr(h){
+      try {
+        if (!h) return '';
+        if (h.validTime) return String(h.validTime);
+        const rt = h.refTime;
+        const ft = (h.forecastTime != null) ? Number(h.forecastTime) : null;
+        if (rt && ft != null && !isNaN(ft)) {
+          const d = new Date(String(rt).replace(' ', 'T') + 'Z');
+          if (!isNaN(d)) {
+            const d2 = new Date(d.getTime() + ft*3600*1000);
+            return d2.toISOString().replace('T',' ').replace(/\.\d{3}Z$/,'');
+          }
+        }
+        return String(rt || '');
+      } catch(_e){ return String((h && h.refTime) || ''); }
+    }
+    const effUtcStr = hdr ? effTimeStr(hdr) : null;
+    let effLocalStr = '';
+    if (effUtcStr) {
+      const d = new Date(String(effUtcStr).replace(' ', 'T') + 'Z');
+      if (!isNaN(d)) effLocalStr = d.toLocaleString();
+      console.log('[WIND] time (UTC):', effUtcStr, ' | local:', effLocalStr);
     }
     if (typeof window !== 'undefined') {
-      window._lastWindMeta = { refUtcStr: refUtcStr || '', refLocalStr: refLocalStr || '' };
+      window._lastWindMeta = { refUtcStr: effUtcStr || '', refLocalStr: effLocalStr || '' };
     }
 
     let meta = document.getElementById('wind-meta');
@@ -878,9 +965,20 @@ async function loadWind(desiredOverride){
         }
         const meta = (typeof window !== 'undefined' && window._lastWindMeta) ? window._lastWindMeta : { refUtcStr: '', refLocalStr: '' };
         if (best) {
+          const avgLine = (typeof best.avgKt === 'number' && isFinite(best.avgKt))
+            ? `Vent moyen: <b>${best.avgKt.toFixed(1)} kt</b><br/>`
+            : '';
+          const gustLine = (typeof best.gustKt === 'number' && isFinite(best.gustKt))
+            ? `Rafales: <b>${best.gustKt.toFixed(1)} kt</b><br/>`
+            : '';
+          const speedLine = (!avgLine && !gustLine)
+            ? `Vitesse: <b>${(best.speed||0).toFixed(1)} kt</b><br/>`
+
+
+            : '';
           const html = `<div style="font-size:12px;line-height:1.2">
               <b>Vent (point le plus proche)</b><br/>
-              Vitesse: <b>${best.speed.toFixed(1)} kt</b><br/>
+              ${avgLine}${gustLine}${speedLine}
               Direction: <b>${best.dir.toFixed(0)}°</b><br/>
               Data ref (UTC): ${meta.refUtcStr || '—'}<br/>
               Local: ${meta.refLocalStr || '—'}
@@ -5118,12 +5216,17 @@ btn.addEventListener("click", () => {
 });
 
 
-// === Bouton météo du vent (index.html ligne ~40) : toggle apparition/disparition de la couche de barbules ===
-// Utilisé par onclick="toggleVent()" dans le template. Se comporte comme les autres boutons du panneau de gauche.
+// === Boutons météo (vent et rafales) : gestion de la couche de barbules ===
+// Utilisé par onclick="toggleVent()" (vent moyen) et onclick="toggleRafale()" (rafales)
 window.toggleVent = async function() {
   try {
     const btn = document.getElementById('ventButton');
+    const rafBtn = document.getElementById('RafaleButton');
     const hasMap = (typeof map !== 'undefined' && map && typeof map.hasLayer === 'function');
+
+    // Désactiver le mode rafales si actif, on bascule vers vent moyen
+    if (typeof window !== 'undefined') window.WIND_USE_GUST = false;
+    if (rafBtn) rafBtn.classList.remove('active');
 
     // Si la couche existe déjà, on teste sa visibilité
     const layer = (typeof window !== 'undefined') ? window._windBarbLayer : null;
@@ -5150,9 +5253,13 @@ window.toggleVent = async function() {
       return;
     }
 
-    // Afficher la couche
+    // Afficher/mettre à jour la couche en vent moyen
     if (layer) {
-      // La couche existe déjà mais est masquée → ré‑attacher
+      // La couche existe déjà mais est masquée → la réafficher après avoir recalculé en mode vent si besoin
+      try {
+        // Forcer un recalcul si on sortait du mode rafales
+        await loadWind();
+      } catch(e) { console.warn('[WIND] toggleVent loadWind() a échoué:', e); }
       try { layer.addTo(map); } catch(e) {}
     } else {
       // Aucune couche encore construite → charger les données et créer la couche
@@ -5181,5 +5288,58 @@ window.toggleVent = async function() {
     try { refreshMapView(); } catch(_e2) {}
   } catch (e) {
     console.warn('toggleVent failed:', e);
+  }
+};
+
+// Bouton Rafales (index.html ligne ~41)
+window.toggleRafale = async function() {
+  try {
+    const btn = document.getElementById('RafaleButton');
+    const ventBtn = document.getElementById('ventButton');
+    const hasMap = (typeof map !== 'undefined' && map && typeof map.hasLayer === 'function');
+
+    // Activer le mode rafales (vitesse depuis le champ de rafales, direction depuis U/V)
+    if (typeof window !== 'undefined') window.WIND_USE_GUST = true;
+    if (ventBtn) ventBtn.classList.remove('active');
+
+    const layer = (typeof window !== 'undefined') ? window._windBarbLayer : null;
+    const isVisible = !!(hasMap && layer && map.hasLayer(layer));
+
+    if (isVisible && btn && btn.classList.contains('active')) {
+      // Si déjà visible et bouton actif → masquer la couche
+      try { map.removeLayer(layer); } catch(e) {}
+      btn.classList.remove('active');
+      btn.title = "Afficher les rafales";
+
+      if (typeof window !== 'undefined') window.AppState = window.AppState || {};
+      if (window.AppState) window.AppState.isWindLayerVisible = false;
+      try { refreshMapView(); } catch(_e) {}
+      return;
+    }
+
+    // Afficher/mettre à jour la couche en mode rafales
+    try { await loadWind(); } catch(e) { console.warn('[WIND] toggleRafale loadWind() a échoué:', e); }
+
+    if (typeof window !== 'undefined' && window._windBarbLayer && hasMap && !map.hasLayer(window._windBarbLayer)) {
+      try { window._windBarbLayer.addTo(map); } catch(e) {}
+    }
+
+    // Afficher les panneaux d'info/heure
+    try {
+      const meta = document.getElementById('wind-meta');
+      const timeCtl = document.getElementById('wind-time-ctrl');
+      if (meta) meta.style.display = '';
+      if (timeCtl) timeCtl.style.display = '';
+    } catch(_eShow) {}
+
+    if (btn) {
+      btn.classList.add('active');
+      btn.title = "Masquer les rafales";
+    }
+    if (typeof window !== 'undefined') window.AppState = window.AppState || {};
+    if (window.AppState) window.AppState.isWindLayerVisible = true;
+    try { refreshMapView(); } catch(_e2) {}
+  } catch(e) {
+    console.warn('toggleRafale failed:', e);
   }
 };

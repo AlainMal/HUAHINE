@@ -461,7 +461,7 @@ strong {
 .vent-container {
     position: fixed;
     left: 10px;
-    top: 60%;
+    top: 58%;
     transform: translateY(-50%);
     z-index: 1000;
     display: flex;
@@ -520,6 +520,11 @@ strong {
 #ventButton.active {
     background: #00FF00 !important;
     color: white !important; /* Couleur quand la météo du vent est visible */
+}
+/* État actif du bouton rafales (RafaleButton) */
+#RafaleButton.active {
+    background: #00FF00 !important;
+    color: white !important; /* Couleur quand les rafales sont visibles */
 }
 
 /* ===== BOUTON DE MESURE DE DISTANCE (redéfinition) ===== */

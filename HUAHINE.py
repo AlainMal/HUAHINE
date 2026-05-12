@@ -2047,7 +2047,7 @@ async def wind_at():
         if vgrd is None:
             return Response(_json.dumps({"error":"V not found"}), mimetype="application/json", status=500)
 
-        # Construire le JSON (même structure)
+        # Construire le JSON (même structure), avec rafales si disponibles
         u_vals = ugrd.values
         v_vals = vgrd.values
         ny, nx = u_vals.shape
@@ -2073,6 +2073,57 @@ async def wind_at():
         # Adapter l'orientation pour correspondre au frontend (flip vertical/horizontal)
         u_data = np.flipud(np.fliplr(u_vals)).flatten().tolist()
         v_data = np.flipud(np.fliplr(v_vals)).flatten().tolist()
+
+        # Essayer de trouver un champ de rafales aligné temporellement
+        GUST_CANDIDATES = ["gust", "10fg", "wind_gust", "gusts"]
+        gust_vals = None
+        try:
+            # Tenter d'utiliser la même validDate que U
+            g_target = ugrd.validDate.replace(tzinfo=timezone.utc)
+        except Exception:
+            g_target = target_dt
+        def select_gust(grbs_obj, candidates, target_dt):
+            for c in candidates:
+                try:
+                    msgs = grbs_obj.select(shortName=c)
+                except Exception:
+                    msgs = []
+                # Chercher l'heure la plus proche comme pour U/V
+                best = None
+                best_future_delta = None
+                best_past = None
+                best_past_delta = None
+                for m in msgs:
+                    try:
+                        valid = m.validDate.replace(tzinfo=timezone.utc)
+                    except Exception:
+                        continue
+                    dsec = (valid - target_dt).total_seconds()
+                    if dsec >= 0:
+                        if best is None or dsec < best_future_delta:
+                            best = m
+                            best_future_delta = dsec
+                    else:
+                        ad = abs(dsec)
+                        if best_past is None or ad < best_past_delta:
+                            best_past = m
+                            best_past_delta = ad
+                if best is None:
+                    best = best_past
+                if best is not None:
+                    return best
+            return None
+        try:
+            gmsg = select_gust(grbs, GUST_CANDIDATES, g_target)
+        except Exception:
+            gmsg = None
+        gust_data = None
+        if gmsg is not None:
+            try:
+                gust_vals = gmsg.values
+                gust_data = np.flipud(np.fliplr(gust_vals)).flatten().tolist()
+            except Exception:
+                gust_data = None
 
         json_data = [
             {
@@ -2112,6 +2163,25 @@ async def wind_at():
                 "data": v_data
             }
         ]
+        if gust_data is not None:
+            json_data.append({
+                "header": {
+                    "parameterUnit": "m/s",
+                    "parameterNumber": int(getattr(gmsg, 'parameterNumber', 0) or 0),
+                    "parameterNumberName": "wind_gust",
+                    "parameterCategory": int(getattr(gmsg, 'parameterCategory', 2) or 2),
+                    "nx": nx,
+                    "ny": ny,
+                    "lo1": lo1,
+                    "la1": la1,
+                    "lo2": lo2,
+                    "la2": la2,
+                    "dx": dx,
+                    "dy": dy,
+                    "refTime": ref_time_str
+                },
+                "data": gust_data
+            })
 
         resp = Response(_json.dumps(json_data), mimetype="application/json")
         # Désactiver la mise en cache pour refléter l'heure demandée à chaque requête
