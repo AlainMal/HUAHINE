@@ -5221,12 +5221,10 @@ btn.addEventListener("click", () => {
 window.toggleVent = async function() {
   try {
     const btn = document.getElementById('ventButton');
-    const rafBtn = document.getElementById('RafaleButton');
     const hasMap = (typeof map !== 'undefined' && map && typeof map.hasLayer === 'function');
 
     // Désactiver le mode rafales si actif, on bascule vers vent moyen
     if (typeof window !== 'undefined') window.WIND_USE_GUST = false;
-    if (rafBtn) rafBtn.classList.remove('active');
 
     // Si la couche existe déjà, on teste sa visibilité
     const layer = (typeof window !== 'undefined') ? window._windBarbLayer : null;
@@ -5291,55 +5289,279 @@ window.toggleVent = async function() {
   }
 };
 
-// Bouton Rafales (index.html ligne ~41)
-window.toggleRafale = async function() {
-  try {
-    const btn = document.getElementById('RafaleButton');
-    const ventBtn = document.getElementById('ventButton');
-    const hasMap = (typeof map !== 'undefined' && map && typeof map.hasLayer === 'function');
 
-    // Activer le mode rafales (vitesse depuis le champ de rafales, direction depuis U/V)
-    if (typeof window !== 'undefined') window.WIND_USE_GUST = true;
-    if (ventBtn) ventBtn.classList.remove('active');
-
-    const layer = (typeof window !== 'undefined') ? window._windBarbLayer : null;
-    const isVisible = !!(hasMap && layer && map.hasLayer(layer));
-
-    if (isVisible && btn && btn.classList.contains('active')) {
-      // Si déjà visible et bouton actif → masquer la couche
-      try { map.removeLayer(layer); } catch(e) {}
-      btn.classList.remove('active');
-      btn.title = "Afficher les rafales";
-
-      if (typeof window !== 'undefined') window.AppState = window.AppState || {};
-      if (window.AppState) window.AppState.isWindLayerVisible = false;
-      try { refreshMapView(); } catch(_e) {}
-      return;
-    }
-
-    // Afficher/mettre à jour la couche en mode rafales
-    try { await loadWind(); } catch(e) { console.warn('[WIND] toggleRafale loadWind() a échoué:', e); }
-
-    if (typeof window !== 'undefined' && window._windBarbLayer && hasMap && !map.hasLayer(window._windBarbLayer)) {
-      try { window._windBarbLayer.addTo(map); } catch(e) {}
-    }
-
-    // Afficher les panneaux d'info/heure
-    try {
-      const meta = document.getElementById('wind-meta');
-      const timeCtl = document.getElementById('wind-time-ctrl');
-      if (meta) meta.style.display = '';
-      if (timeCtl) timeCtl.style.display = '';
-    } catch(_eShow) {}
-
-    if (btn) {
-      btn.classList.add('active');
-      btn.title = "Masquer les rafales";
-    }
-    if (typeof window !== 'undefined') window.AppState = window.AppState || {};
-    if (window.AppState) window.AppState.isWindLayerVisible = true;
-    try { refreshMapView(); } catch(_e2) {}
-  } catch(e) {
-    console.warn('toggleRafale failed:', e);
+// === Isobares (PRMSL) : chargement et bascule d'affichage ===
+(function(){
+  // Petit utilitaire pour convertir un nombre à 2 chiffres
+  function two(n){ return (n<10? '0':'') + n; }
+  function formatLocalISO(dt){
+    const y = dt.getFullYear();
+    const m = two(dt.getMonth()+1);
+    const d = two(dt.getDate());
+    const hh = two(dt.getHours());
+    const mm = two(dt.getMinutes());
+    const offMin = -dt.getTimezoneOffset();
+    const sign = offMin>=0 ? '+' : '-';
+    const a = Math.abs(offMin);
+    const oh = two(Math.floor(a/60));
+    const om = two(a%60);
+    return `${y}-${m}-${d}T${hh}:${mm}${sign}${oh}:${om}`;
   }
-};
+
+  // Marche de carrés simple: renvoie une liste de segments [ [lat,lng], [lat,lng] ] pour un niveau donné
+  function marchingSquares(data, nx, ny, lo1, la1, lo2, la2, level) {
+    const segs = [];
+    if (!Array.isArray(data) || nx<2 || ny<2) return segs;
+    const dx = (lo2 - lo1) / (nx - 1);
+    const dy = (la2 - la1) / (ny - 1);
+
+    function interp(p1, p2, v1, v2) {
+      const t = (level - v1) / (v2 - v1);
+      return p1 + t * (p2 - p1);
+    }
+    function unwrapLongitude(lon) { return lon > 180 ? lon - 360 : lon; }
+
+    for (let j=0; j<ny-1; j++){
+      for (let i=0; i<nx-1; i++){
+        const idx = j*nx + i;
+        const z00 = data[idx];
+        const z10 = data[idx+1];
+        const z01 = data[idx+nx];
+        const z11 = data[idx+nx+1];
+        const c0 = z00>=level ? 1:0;
+        const c1 = z10>=level ? 1:0;
+        const c2 = z11>=level ? 1:0;
+        const c3 = z01>=level ? 1:0;
+        const code = (c0) | (c1<<1) | (c2<<2) | (c3<<3);
+        if (code===0 || code===15) continue; // pas de croisement
+
+        const x0 = lo1 + i*dx; const x1 = lo1 + (i+1)*dx;
+        const y0 = la1 + j*dy; const y1 = la1 + (j+1)*dy;
+
+        // Positions potentielles le long des arêtes
+        let pA=null, pB=null, pC=null, pD=null; // A: bas (y0) entre x0-x1; B: droite (x1) entre y0-y1; C: haut (y1) entre x0-x1; D: gauche (x0) entre y0-y1
+        if ((z00-level)*(z10-level) <= 0 && z00!==z10) {
+          const xi = interp(x0, x1, z00, z10); pA = [y0, unwrapLongitude(xi)];
+        }
+        if ((z10-level)*(z11-level) <= 0 && z10!==z11) {
+          const yi = interp(y0, y1, z10, z11); pB = [yi, unwrapLongitude(x1)];
+        }
+        if ((z01-level)*(z11-level) <= 0 && z01!==z11) {
+          const xi = interp(x0, x1, z01, z11); pC = [y1, unwrapLongitude(xi)];
+        }
+        if ((z00-level)*(z01-level) <= 0 && z00!==z01) {
+          const yi = interp(y0, y1, z00, z01); pD = [yi, unwrapLongitude(x0)];
+        }
+
+        // Selon le code, on crée 1 ou 2 segments en reliant les intersections disponibles
+        // Cas ambigus (5, 10) : on crée deux segments (A-C et B-D) pour éviter les fuites
+        function add(a,b){ if (a && b) segs.push([a,b]); }
+        switch(code){
+          case 1: case 14: add(pA, pD); break;
+          case 2: case 13: add(pA, pB); break;
+          case 3: case 12: add(pB, pD); break;
+          case 4: case 11: add(pB, pC); break;
+          case 5: add(pA, pD); add(pB, pC); break;
+          case 6: case 9: add(pA, pC); break;
+          case 7: case 8: add(pC, pD); break;
+          case 10: add(pA, pB); add(pC, pD); break;
+        }
+      }
+    }
+    return segs;
+  }
+
+  // Utilitaires anti-méridien pour éviter les segments qui "font le tour de la terre"
+  function wrap180(lon){ return ((lon + 540) % 360) - 180; }
+  function splitIfCrossAntiMeridian(a, b){
+    // a, b = [lat, lon] avec lon normalisé [-180,180]
+    const lat1 = a[0], lon1 = a[1];
+    const lat2 = b[0], lon2 = b[1];
+    const delta = lon2 - lon1;
+    // Si pas de grand saut en longitude, on garde tel quel
+    if (Math.abs(delta) <= 180) {
+      return [ [ [lat1, lon1], [lat2, lon2] ] ];
+    }
+    // Dérouler lon2 pour travailler dans un espace continu
+    let lon2u = lon2;
+    if (delta > 180) lon2u = lon2 - 360;
+    else if (delta < -180) lon2u = lon2 + 360;
+
+    // Déterminer si on croise +180 ou -180 dans cet espace continu
+    // On teste les deux et on prend celui qui est entre lon1 et lon2u
+    function between(x, a, b){ return (x >= Math.min(a,b) && x <= Math.max(a,b)); }
+    let target = null; // 180 ou -180 (en espace continu: peut être 180 ou -180)
+    if (between(180, lon1, lon2u)) target = 180;
+    else if (between(-180, lon1, lon2u)) target = -180;
+
+    if (target === null) {
+      // Cas rare: choisir le plus proche bord à croiser
+      target = (Math.abs(180 - lon1) < Math.abs(-180 - lon1)) ? 180 : -180;
+    }
+
+    const t = (target - lon1) / (lon2u - lon1);
+    const latC = lat1 + t * (lat2 - lat1);
+    const lonCross = wrap180(target);
+    const otherSide = wrap180(target === 180 ? -180 : 180);
+
+    const seg1 = [ [lat1, lon1], [latC, lonCross] ];
+    const seg2 = [ [latC, otherSide], [lat2, lon2] ];
+    return [ seg1, seg2 ];
+  }
+  function midpointSmart(a, b){
+    const lat1 = a[0], lon1 = a[1];
+    const lat2 = b[0], lon2 = b[1];
+    let lon2u = lon2;
+    if (lon2 - lon1 > 180) lon2u = lon2 - 360;
+    else if (lon2 - lon1 < -180) lon2u = lon2 + 360;
+    const midLat = (lat1 + lat2) / 2;
+    const midLon = wrap180((lon1 + lon2u) / 2);
+    return { lat: midLat, lng: midLon };
+  }
+
+  async function loadIsobars(desiredOverride){
+    try{
+      // Déterminer l'heure demandée (réutilise le mécanisme du vent si présent)
+      let desired = (typeof desiredOverride === 'string' && desiredOverride.trim()) ? desiredOverride.trim()
+                  : (typeof window !== 'undefined' && typeof window.WIND_DESIRED_ISO === 'string' && window.WIND_DESIRED_ISO.trim()) ? window.WIND_DESIRED_ISO.trim()
+                  : formatLocalISO(new Date());
+
+      // Choisir la source principale: GRIB via /wind_at; fallback sur /wind.json
+      let url = '/wind_at?iso=' + encodeURIComponent(desired) + '&ts=' + Date.now();
+      let payload = null;
+      try{
+        const r = await fetch(url);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        payload = await r.json();
+      } catch(e){
+        const r2 = await fetch('/wind.json?ts=' + Date.now());
+        if (!r2.ok) throw new Error('HTTP ' + r2.status);
+        payload = await r2.json();
+      }
+
+      if (!payload) throw new Error('Aucune donnée météo');
+
+      // Trouver le champ de pression (hPa) correspondant
+      let pressure = null;
+      if (Array.isArray(payload)){
+        // Chercher un objet dont parameterNumberName contient 'pressure' ou dont l'unité est hPa
+        // On privilégie la présence d'un seul pas de temps renvoyé par /wind_at
+        pressure = payload.find(it => it && it.header && ((String(it.header.parameterNumberName||'').toLowerCase().includes('pressure')) || String(it.header.parameterUnit||'').toLowerCase()==='hpa'))
+                  || null;
+        // Si plusieurs heures, on prend le premier qui matche
+      } else if (payload && payload.header) {
+        pressure = payload;
+      }
+      if (!pressure || !pressure.header || !Array.isArray(pressure.data)){
+        console.warn('[ISOBARS] Pas de champ PRMSL trouvé');
+        return;
+      }
+
+      const hdr = pressure.header;
+      const nx = Number(hdr.nx), ny = Number(hdr.ny);
+      const lo1 = Number(hdr.lo1), la1 = Number(hdr.la1);
+      const lo2 = Number(hdr.lo2), la2 = Number(hdr.la2);
+      const data = pressure.data.map(Number);
+
+      // Déterminer une plage de niveaux (hPa) raisonnable d'après les données
+      let minP = Infinity, maxP = -Infinity;
+      for (const v of data){ if (isFinite(v)) { if (v<minP) minP=v; if (v>maxP) maxP=v; } }
+      if (!isFinite(minP) || !isFinite(maxP) || minP===maxP){
+        console.warn('[ISOBARS] Valeurs de pression invalides');
+        return;
+      }
+      // Pas de 4 hPa (classique). On centre dans l'intervalle observé
+      const start = Math.ceil(minP/4)*4;
+      const end = Math.floor(maxP/4)*4;
+      const levels = [];
+      for (let p=start; p<=end; p+=4) levels.push(p);
+      if (levels.length===0) levels.push(Math.round((minP+maxP)/2));
+
+      // Créer/vider la couche de polylignes
+      if (typeof window === 'undefined') return;
+      if (!window._isobarLayer){ window._isobarLayer = L.layerGroup(); }
+      const grp = window._isobarLayer;
+      try { grp.clearLayers(); } catch(e) {}
+
+      // Générer et ajouter les segments pour chaque niveau, avec étiquettes de pression (hPa)
+      for (const lvl of levels){
+        const segs = marchingSquares(data, nx, ny, lo1, la1, lo2, la2, lvl);
+        if (!segs || segs.length===0) continue;
+        const style = {
+          color: (lvl % 8 === 0) ? '#00008B' : '#2055aa',
+          weight: (lvl % 8 === 0) ? 1.2 : 1,
+          opacity: 0.8
+        };
+        const labelEvery = Math.max(1, Math.floor(segs.length / 12)); // ~12 labels par niveau max
+        let k = 0;
+        for (const seg of segs){
+          try{
+            // Découper les segments qui traversent l'anti-méridien pour éviter les traits autour du globe
+            const parts = splitIfCrossAntiMeridian(seg[0], seg[1]);
+            for (const part of parts){
+              L.polyline(part, style).addTo(grp);
+            }
+            // Placer une étiquette au milieu d'un segment sur n (en tenant compte d'un éventuel wrap)
+            if ((k % labelEvery) === 0) {
+              const a = seg[0], b = seg[1];
+              if (a && b && isFinite(a[0]) && isFinite(a[1]) && isFinite(b[0]) && isFinite(b[1])){
+                const mid = midpointSmart(a, b);
+                const icon = L.divIcon({
+                  className: 'isobar-label',
+                  html: '<span style="font-size:10px;color:#1a3f8b;background:rgba(255,255,255,0.7);padding:1px 3px;border-radius:2px;border:1px solid rgba(26,63,139,0.2);">'+ Math.round(lvl) +'</span>',
+                  iconSize: [0,0]
+                });
+                L.marker([mid.lat, mid.lng], { icon, interactive: false, keyboard: false }).addTo(grp);
+              }
+            }
+            k++;
+          } catch(_e){}
+        }
+      }
+
+      // Attacher à la carte si le bouton est actif
+      if (typeof map!=='undefined' && map && typeof map.addLayer==='function'){
+        try{ grp.addTo(map);}catch(_e){}
+      }
+    } catch(err){
+      console.warn('[ISOBARS] Échec chargement isobares:', err);
+    }
+  }
+
+  // Bascule via le bouton (même logique que toggleVent)
+  window.toggleIsobare = async function(){
+    try{
+      const btn = document.getElementById('isobareButton');
+      const hasMap = (typeof map !== 'undefined' && map && typeof map.hasLayer === 'function');
+      const layer = (typeof window !== 'undefined') ? window._isobarLayer : null;
+      const isVisible = !!(hasMap && layer && map.hasLayer(layer));
+
+      if (isVisible){
+        try { map.removeLayer(layer); } catch(e) {}
+        if (btn){ btn.classList.remove('active'); btn.title = 'Afficher les isobares'; }
+        if (typeof window !== 'undefined'){
+          window.AppState = window.AppState || {};
+          window.AppState.isIsobarVisible = false;
+        }
+        try { refreshMapView(); } catch(_e){}
+        return;
+      }
+
+      // Afficher => charger si nécessaire puis ajouter
+      if (!layer || (layer && typeof layer.getLayers==='function' && layer.getLayers().length===0)){
+        await loadIsobars();
+      }
+      if (typeof window !== 'undefined' && window._isobarLayer && hasMap && !map.hasLayer(window._isobarLayer)){
+        try { window._isobarLayer.addTo(map); } catch(e){}
+      }
+      if (btn){ btn.classList.add('active'); btn.title = 'Masquer les isobares'; }
+      if (typeof window !== 'undefined'){
+        window.AppState = window.AppState || {};
+        window.AppState.isIsobarVisible = true;
+      }
+      try { refreshMapView(); } catch(_e2){}
+    } catch(e){
+      console.warn('toggleIsobare failed:', e);
+    }
+  }
+})();
