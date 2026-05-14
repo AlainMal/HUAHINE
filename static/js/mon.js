@@ -435,6 +435,48 @@ function refreshMapView() {
     } catch(e) { /* ignore */ }
 }
 
+if (!window._windProbeBound) {
+    map.on('click', (e) => {
+
+        const list = window._lastWindBarbs || [];
+        if (!list.length) return;
+
+        const { lat, lng } = e.latlng;
+        let best = null, bestD2 = Infinity;
+
+        for (const p of list) {
+            const dlat = p.lat - lat;
+            const dlng = (p.lng ?? p.lon) - lng;
+            const d2 = dlat*dlat + dlng*dlng;
+            if (d2 < bestD2) { bestD2 = d2; best = p; }
+        }
+
+        if (!best) return;
+
+        const t = window._currentWindTime;
+        const dateStr = t
+            ? t.toLocaleString("fr-FR", { weekday:"short", day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" })
+            : "—";
+
+        const avg = Number.isFinite(best.avgKt) ? best.avgKt.toFixed(1) : "?";
+        const gust = Number.isFinite(best.gustKt) ? best.gustKt.toFixed(1) : null;
+
+        const html = `
+            <div style="font-size:12px;line-height:1.2">
+                <b>Vent (point le plus proche)</b><br/>
+                Vent moyen : <b>${avg} kt</b><br/>
+                ${gust ? `Rafales : <b>${gust} kt</b><br/>` : ""}
+                Direction : <b>${best.dir.toFixed(0)}°</b><br/>
+                Échéance : ${dateStr}
+            </div>
+        `;
+
+        L.popup().setLatLng(e.latlng).setContent(html).openOn(map);
+    });
+
+    window._windProbeBound = true;
+}
+
 // ==============================================
 // METEO ..........................
 // ==============================================
@@ -540,18 +582,31 @@ function gridToWindBarbs(wind) {
             // Normaliser la longitude en [-180, 180]
             const lng = ((rawLng + 540) % 360) - 180;
 
+            // Générer une barbule SVG simple
+            const barbSize = 32;
+            const svg = `
+            <svg width="${barbSize}" height="${barbSize}" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"
+                 style="transform: rotate(${dir}deg);">
+              <line x1="32" y1="32" x2="32" y2="5" stroke="black" stroke-width="3"/>
+            </svg>`;
+
             // Appliquer l'échantillonnage
             if ((i % stepX === 0) && (j % stepY === 0)) {
                 points.push({
-                    lat: lat,
-                    lon: lng, // leaflet-windbarb attend généralement 'lon'
-                    lng: lng, // conserver aussi 'lng' par compatibilité Leaflet
-                    speed: speed,
-                    dir: dir, // Propriété attendue par leaflet-windbarb
-                    _idx: idx, // index linéaire de la cellule dans les tableaux U/V/rafales
-                    avgKt: avgKt,
-                    gustKt: gustKt
-                });
+                lat: lat,
+                lon: lng,
+                lng: lng,
+                speed: speed,
+                dir: dir,
+                _idx: idx,
+                avgKt: avgKt,
+                gustKt: gustKt,
+                icon: {
+                    svg: svg,
+                    size: barbSize
+                }
+            });
+
             }
         }
     }
@@ -559,577 +614,200 @@ function gridToWindBarbs(wind) {
     return points;
 }
 
-async function loadWind(desiredOverride){
-  // Utilitaire: formate une date locale en ISO avec décalage timezone, à la minute près
-  function two(n){ return (n<10? '0':'') + n; }
-  function formatLocalISO(dt){
-    const y = dt.getFullYear();
-    const m = two(dt.getMonth()+1);
-    const d = two(dt.getDate());
-    const hh = two(dt.getHours());
-    const mm = two(dt.getMinutes());
-    const offMin = -dt.getTimezoneOffset(); // minutes à ajouter
-    const sign = offMin>=0 ? '+' : '-';
-    const a = Math.abs(offMin);
-    const oh = two(Math.floor(a/60));
-    const om = two(a%60);
-    return `${y}-${m}-${d}T${hh}:${mm}${sign}${oh}:${om}`;
-  }
-
-  // Séquence anti-conflit pour ignorer les réponses obsolètes (plusieurs clics/horaires rapides)
-  let mySeq = 0;
-  if (typeof window !== 'undefined') {
-    window._windReqSeq = (window._windReqSeq || 0) + 1;
-    mySeq = window._windReqSeq;
-    try { console.log('[WIND] req#', mySeq, 'start'); } catch(e) {}
-  }
-  function isCurrent(){ return (typeof window === 'undefined') || mySeq === window._windReqSeq; }
-
-  // Annuler toute requête précédente en cours (AbortController) avant d'en démarrer une nouvelle
-  let signal = undefined;
+// Fonction utilitaire optionnelle pour dessiner explicitement les barbules à partir d'une liste de points
+// Usage: window.drawWindBarbs(window._lastWindBarbs)
+function drawWindBarbs(points) {
   try {
-    if (typeof window !== 'undefined') {
-      if (window._windAbort) {
-        try { window._windAbort.abort(); } catch(_e) {}
-      }
-      window._windAbort = new AbortController();
-      signal = window._windAbort.signal;
+    if (!Array.isArray(points) && typeof window !== 'undefined' && Array.isArray(window._lastWindBarbs)) {
+      points = window._lastWindBarbs;
     }
-  } catch(_e) { signal = undefined; }
+  } catch(_) {}
+  if (!points || !Array.isArray(points)) return;
+  if (typeof L === 'undefined' || typeof map === 'undefined') return;
 
-  // Préparer une couche persistante pour les barbules (pas de rechargement complet)
-  // Nous réutilisons le même LayerGroup et nous le vidons à chaque changement d'heure
-  // afin d'éviter toute superposition/doublon visuel.
-  let persistentGroup = null;
+  // S'assurer que le pane existe
   try {
-    if (window._windBarbLayer && map) {
-      // Réutiliser le même LayerGroup persistant, mais NE PAS le vider ici.
-      // On le videra uniquement si cette requête est la plus récente,
-      // juste avant d'ajouter les nouveaux marqueurs.
-      persistentGroup = window._windBarbLayer;
-    }
-  } catch(e) {}
-
-  // Déterminer l'heure demandée
-  let desired = (typeof desiredOverride === 'string' && desiredOverride.trim().length>0)
-      ? desiredOverride.trim()
-      : (typeof window !== 'undefined' && typeof window.WIND_DESIRED_ISO === 'string' && window.WIND_DESIRED_ISO.trim().length>0)
-          ? window.WIND_DESIRED_ISO.trim()
-          : formatLocalISO(new Date());
-  if (typeof window !== 'undefined') window.WIND_DESIRED_ISO = desired; // mémorise pour l'UI
-
-  // Sélection de la source de données vent
-  var sourcePref = (typeof window !== 'undefined' && typeof window.WIND_SOURCE === 'string') ? window.WIND_SOURCE.toLowerCase() : 'auto';
-  var url = '';
-  if (sourcePref === 'static') {
-    url = '/wind.json?ts=' + Date.now();
-    if (typeof window !== 'undefined') window.WIND_LAST_SOURCE = 'static';
-    try { console.log('[WIND] Source: wind.json (forcée)'); } catch(e){}
-  } else if (sourcePref === 'grib') {
-    url = '/wind_at?iso=' + encodeURIComponent(desired) + '&ts=' + Date.now();
-    if (typeof window !== 'undefined') window.WIND_LAST_SOURCE = 'grib';
-    try { console.log('[WIND] Source: wind_at (forcée), heure demandée:', desired); } catch(e){}
-  } else { // auto → privilégier le GRIB à l'heure courante locale
-    url = '/wind_at?iso=' + encodeURIComponent(desired) + '&ts=' + Date.now();
-    if (typeof window !== 'undefined') window.WIND_LAST_SOURCE = 'grib';
-    try { console.log('[WIND] Source: auto → wind_at (par défaut), heure demandée:', desired); } catch(e){}
-  }
-
-  let w = null;
-  try {
-    const r = await fetch(url, { signal });
-    if (!r || !r.ok) throw new Error('HTTP ' + (r && r.status));
-    w = await r.json();
-  } catch (err) {
-    // Si la requête a été annulée, ne rien journaliser: simplement sortir
-    if (err && (err.name === 'AbortError' || (''+err).includes('AbortError'))) {
-      try { console.log('[WIND] req#', mySeq, 'aborted'); } catch(e) {}
-      return;
-    }
-    try { console.warn('[WIND] Échec chargement source primaire:', err); } catch(e){}
-    if (typeof window !== 'undefined') {
-      var pref = (typeof window.WIND_SOURCE === 'string') ? window.WIND_SOURCE.toLowerCase() : 'auto';
-      var last = window.WIND_LAST_SOURCE || 'static';
-      try {
-        if (pref === 'auto' && last === 'static') {
-          console.log('[WIND] Fallback auto → wind_at (GRIB), heure demandée:', window.WIND_DESIRED_ISO || desired);
-          window.WIND_LAST_SOURCE = 'grib';
-          const desiredIso = (typeof window !== 'undefined' && typeof window.WIND_DESIRED_ISO === 'string') ? window.WIND_DESIRED_ISO : desired;
-          const r2 = await fetch('/wind_at?iso=' + encodeURIComponent(desiredIso) + '&ts=' + Date.now(), { signal });
-          if (!r2.ok) throw new Error('HTTP ' + r2.status);
-          w = await r2.json();
-        } else if (pref === 'auto' && last === 'grib') {
-          console.log('[WIND] Fallback auto → wind.json (statique)');
-          window.WIND_LAST_SOURCE = 'static';
-          const r2 = await fetch('/wind.json?ts=' + Date.now(), { signal });
-          if (!r2.ok) throw new Error('HTTP ' + r2.status);
-          w = await r2.json();
-        } else {
-          throw err;
-        }
-      } catch(e2) {
-        if (e2 && (e2.name === 'AbortError' || (''+e2).includes('AbortError'))) { try { console.log('[WIND] req#', mySeq, 'aborted (fallback)'); } catch(_e3) {} return; }
-        console.error('[WIND] Fallback échoué:', e2);
-        throw e2;
+    if (!map.getPane('windbarbs')) {
+      map.createPane('windbarbs');
+      const p = map.getPane('windbarbs');
+      if (p && p.style) {
+        p.style.zIndex = 650;
+        p.style.pointerEvents = 'none';
       }
-    } else {
-      throw err;
     }
+  } catch(_) {}
+
+  // Créer ou réutiliser la couche
+  if (typeof window !== 'undefined' && !window._windBarbLayer) {
+    try { window._windBarbLayer = L.layerGroup([], { pane: 'windbarbs' }).addTo(map); } catch(_) {}
   }
+  const layer = (typeof window !== 'undefined') ? window._windBarbLayer : null;
+  if (!layer) return;
+  try { if (typeof layer.clearLayers === 'function') layer.clearLayers(); } catch(_) {}
 
-  // Si le fichier statique contient plusieurs pas de temps, regrouper par heure effective (validTime si dispo) et sélectionner la paire U/V (+ rafales si présentes)
-  try {
-    if (Array.isArray(w) && w.length > 2) {
-      const wAll = w; // conserver la liste complète pour recherche de rafales proches si besoin
-      // Heure effective: header.validTime si présente; sinon refTime + forecastTime; sinon refTime
-      function effTimeStr(hdr){
-        try {
-          if (!hdr) return '';
-          if (hdr.validTime) return String(hdr.validTime);
-          const rt = hdr.refTime;
-          const ft = (hdr.forecastTime != null) ? Number(hdr.forecastTime) : null;
-          if (rt && ft != null && !isNaN(ft)) {
-            const d = new Date(String(rt).replace(' ', 'T') + 'Z');
-            if (!isNaN(d)) {
-              const d2 = new Date(d.getTime() + ft*3600*1000);
-              return d2.toISOString().replace('T',' ').replace(/\.\d{3}Z$/,'');
-            }
-          }
-          return String(rt || '');
-        } catch(_e){ return String((hdr && hdr.refTime) || ''); }
-      }
-      const groups = new Map(); // effTime => {U:obj, V:obj, G:obj}
-      for (const it of wAll) {
-        if (!it || !it.header) continue;
-        const key = effTimeStr(it.header);
-        if (!groups.has(key)) groups.set(key, { U: null, V: null, G: null, time: key });
-        const g = groups.get(key);
-        const name = (it.header.parameterNumberName || '').toLowerCase();
-        const pnum = it.header.parameterNumber;
-        if (name.includes('eastward') || pnum === 2) g.U = g.U || it;
-        else if (name.includes('northward') || pnum === 3) g.V = g.V || it;
-        else if (name.includes('gust')) g.G = g.G || it;
-      }
-      // Construire la liste des paires complètes
-      const pairs = [];
-      for (const [t, g] of groups.entries()) {
-        if (g.U && g.V) {
-          pairs.push({ time: t, U: g.U, V: g.V, G: g.G || null });
-        }
-      }
-      if (pairs.length > 0) {
-        // Sélectionner l'heure la plus proche de l'heure désirée (priorité aux échéances futures)
-        const desiredStr = desired;
-        let target = null;
-        try {
-          const s = desiredStr.replace(' ', 'T');
-          if (/Z$/.test(s) || /[\+\-]\d{2}:?\d{2}$/.test(s)) target = new Date(s);
-          else target = new Date(s);
-        } catch(_e){ target = new Date(); }
-        const tUTC = new Date(target.getTime() + (target.getTimezoneOffset()*60000));
-        let bestFuture = null, bestFutureDelta = Infinity;
-        let bestPast = null, bestPastDelta = Infinity;
-        for (const p of pairs) {
-          let d = null;
-          try { d = new Date(String(p.time).replace(' ', 'T') + 'Z'); } catch(_e) {}
-          if (!d || isNaN(d)) continue;
-          const dsec = (d.getTime() - tUTC.getTime())/1000;
-          if (dsec >= 0) {
-            if (dsec < bestFutureDelta) { bestFuture = p; bestFutureDelta = dsec; }
-          } else {
-            const ad = Math.abs(dsec);
-            if (ad < bestPastDelta) { bestPast = p; bestPastDelta = ad; }
-          }
-        }
-        const chosen = bestFuture || bestPast || pairs[0];
-        if (chosen) {
-          w = [chosen.U, chosen.V];
-          if (typeof window !== 'undefined') {
-            if (chosen.G && chosen.G.data && Array.isArray(chosen.G.data)) {
-              window._gustArray = chosen.G.data;
-            } else {
-              // Aucune rafale à heure strictement identique: chercher la plus proche en temps
-              try {
-                const desiredRef = new Date(String(chosen.time).replace(' ', 'T') + 'Z');
-                let bestG = null, bestD = Infinity;
-                for (const it2 of wAll) {
-                  try {
-                    if (!it2 || !it2.header) continue;
-                    const name2 = String(it2.header.parameterNumberName || '').toLowerCase();
-                    if (!name2.includes('gust')) continue;
-                    const t2s = effTimeStr(it2.header);
-                    const rt2 = t2s ? new Date(String(t2s).replace(' ', 'T') + 'Z') : null;
-                    if (!rt2 || isNaN(rt2)) continue;
-                    const d = Math.abs(rt2.getTime() - desiredRef.getTime());
-                    if (d < bestD) { bestD = d; bestG = it2; }
-                  } catch(_eg2) { /* ignore */ }
-                }
-                window._gustArray = (bestG && bestG.data && Array.isArray(bestG.data)) ? bestG.data : null;
-                try { console.log('[WIND] gust nearest match used:', !!bestG, 'Δms=', bestD); } catch(_el) {}
-              } catch(_eNearest) {
-                window._gustArray = null;
-              }
-            }
-          }
-          try { console.log('[WIND] multi-heure (static): time choisie =', chosen.time, 'pairs=', pairs.length, 'gust-chosen:', !!(chosen.G), 'gust-present:', !!(typeof window!=='undefined' && window._gustArray)); } catch(e) {}
-        }
-      }
-    } else if (Array.isArray(w) && (w.length === 2 || w.length === 3)) {
-      // Cas simple U/V (+ éventuellement gust en 3e entrée)
-      try {
-        const maybeGust = w.find(it => it && it.header && String(it.header.parameterNumberName||'').toLowerCase().includes('gust'));
-        if (typeof window !== 'undefined') {
-          window._gustArray = (maybeGust && maybeGust.data && Array.isArray(maybeGust.data)) ? maybeGust.data : null;
-        }
-      } catch(_eg) {}
-    } else {
-      if (typeof window !== 'undefined') window._gustArray = null;
-    }
-  } catch(e) {
-    console.warn('[WIND] multi-heure parsing failed:', e);
-  }
-
-  // Ignorer si une requête plus récente a démarré entre-temps
-  if (!isCurrent()) { try { console.log('[WIND] req#', mySeq, 'stale → ignore (post-fetch)'); } catch(e) {} return; }
-
-  const barbs = gridToWindBarbs(w);
-  if (!isCurrent()) { try { console.log('[WIND] req#', mySeq, 'stale → ignore (post-grid)'); } catch(e) {} return; }
-  if (typeof window !== 'undefined') {
-    window._lastWindBarbs = barbs;
-  }
-  console.log('wind barbs points:', barbs.length);
-  if (barbs.length > 0) {
-    console.log('sample wind barbs:', barbs.slice(0,3));
-    try {
-      const speeds = barbs.map(p => +p.speed || 0);
-      const minS = Math.min.apply(null, speeds);
-      const maxS = Math.max.apply(null, speeds);
-      console.log('[WIND] stats kt — min:', minS.toFixed(1), 'max:', maxS.toFixed(1));
-    } catch(_eStats) {}
-  }
-
-  // Afficher/mettre à jour les métadonnées temporelles (validTime si disponible)
-  try {
-    const hdr = (Array.isArray(w) && w[0] && w[0].header) ? w[0].header : null;
-    function effTimeStr(h){
-      try {
-        if (!h) return '';
-        if (h.validTime) return String(h.validTime);
-        const rt = h.refTime;
-        const ft = (h.forecastTime != null) ? Number(h.forecastTime) : null;
-        if (rt && ft != null && !isNaN(ft)) {
-          const d = new Date(String(rt).replace(' ', 'T') + 'Z');
-          if (!isNaN(d)) {
-            const d2 = new Date(d.getTime() + ft*3600*1000);
-            return d2.toISOString().replace('T',' ').replace(/\.\d{3}Z$/,'');
-          }
-        }
-        return String(rt || '');
-      } catch(_e){ return String((h && h.refTime) || ''); }
-    }
-    const effUtcStr = hdr ? effTimeStr(hdr) : null;
-    let effLocalStr = '';
-    if (effUtcStr) {
-      const d = new Date(String(effUtcStr).replace(' ', 'T') + 'Z');
-      if (!isNaN(d)) effLocalStr = d.toLocaleString();
-      console.log('[WIND] time (UTC):', effUtcStr, ' | local:', effLocalStr);
-    }
-    if (typeof window !== 'undefined') {
-      window._lastWindMeta = { refUtcStr: effUtcStr || '', refLocalStr: effLocalStr || '' };
-    }
-
-    let meta = document.getElementById('wind-meta');
-    if (!meta) {
-      meta = document.createElement('div');
-      meta.id = 'wind-meta';
-      meta.style.position = 'fixed';
-      meta.style.right = '8px';
-      meta.style.top = '90px';
-      meta.style.zIndex = '1000';
-      meta.style.background = 'rgba(255,255,255,0.85)';
-      meta.style.border = '1px solid #ccc';
-      meta.style.borderRadius = '6px';
-      meta.style.padding = '6px 8px';
-      meta.style.fontSize = '11px';
-      meta.style.color = '#333';
-      meta.style.pointerEvents = 'none';
-      document.body.appendChild(meta);
-    }
-
-
-    // Panneau de sélection d'heure (création si absent, sinon mise à jour valeur)
-    let timeCtl = document.getElementById('wind-time-ctrl');
-    function two2(n){ return (n<10? '0':'')+n; }
-    function formatLocalForInput(dt){
-      return dt.getFullYear()+"-"+two2(dt.getMonth()+1)+"-"+two2(dt.getDate())+"T"+two2(dt.getHours())+":"+two2(dt.getMinutes());
-    }
-    function formatLocalISOWithOffset(dt){
-      const offMin = -dt.getTimezoneOffset();
-      const sign = offMin>=0? '+':'-';
-      const a = Math.abs(offMin);
-      const oh = two2(Math.floor(a/60));
-      const om = two2(a%60);
-      return `${dt.getFullYear()}-${two2(dt.getMonth()+1)}-${two2(dt.getDate())}T${two2(dt.getHours())}:${two2(dt.getMinutes())}${sign}${oh}:${om}`;
-    }
-    function parseDesiredToLocalInput(desiredStr){
-      try {
-        if (!desiredStr) return null;
-        let s = desiredStr.replace(' ', 'T');
-        if (/Z$/.test(s) || /[\+\-]\d{2}:?\d{2}$/.test(s)) {
-          const d = new Date(s);
-          if (!isNaN(d)) return formatLocalForInput(d);
-        }
-        const d2 = new Date(s);
-        if (!isNaN(d2)) return formatLocalForInput(d2);
-      } catch(e) {}
-      return null;
-    }
-    if (!timeCtl) {
-      timeCtl = document.createElement('div');
-      timeCtl.id = 'wind-time-ctrl';
-      timeCtl.style.position = 'fixed';
-      timeCtl.style.right = '8px';
-      timeCtl.style.top = '100px';
-      timeCtl.style.zIndex = '1000';
-      timeCtl.style.background = 'rgba(255,255,255,0.85)';
-      timeCtl.style.border = '1px solid #ccc';
-      timeCtl.style.borderRadius = '6px';
-      timeCtl.style.padding = '6px 8px';
-      timeCtl.style.fontSize = '11px';
-      timeCtl.style.color = '#333';
-      timeCtl.style.pointerEvents = 'auto';
-      timeCtl.innerHTML = `
-        <div style="display:flex; align-items:center; gap:6px;">
-          <label for="wind-dt" style="white-space:nowrap;"></label>
-          <input id="wind-dt" type="datetime-local" style="font-size:11px; padding:2px;" />
-        </div>
-        <div style="margin-top:6px; display:flex; gap:6px; justify-content:flex-end;">
-          <button id="wind-apply" style="font-size:11px; padding:2px 6px;">Appliquer</button>
-          <button id="wind-now" style="font-size:11px; padding:2px 6px;">Maintenant</button>
-          
-        </div>`;
-      document.body.appendChild(timeCtl);
-      // Handlers (sans rechargement global)
-
-      document.getElementById('wind-apply').addEventListener('click', async function(){
-        const inp = document.getElementById('wind-dt');
-        const v = inp.value;
-        if (!v) return;
-        const dt = new Date(v);
-        if (isNaN(dt)) return;
-        const iso = formatLocalISOWithOffset(dt);
-        try { console.log('[WIND] Appliquer heure:', iso); } catch(e) {}
-        if (typeof window !== 'undefined') window.WIND_DESIRED_ISO = iso;
-        await loadWind(iso);
-        try { refreshMapView(); } catch(e) {}
-      });
-      document.getElementById('wind-now').addEventListener('click', async function(){
-        const dt = new Date();
-        const iso = formatLocalISOWithOffset(dt);
-        const inp2 = document.getElementById('wind-dt');
-        inp2.value = formatLocalForInput(dt);
-        try { console.log('[WIND] Maintenant ->', iso); } catch(e) {}
-        if (typeof window !== 'undefined') window.WIND_DESIRED_ISO = iso;
-        await loadWind(iso);
-        try { refreshMapView(); } catch(e) {}
-      });
-    }
-    // Toujours synchroniser la valeur affichée avec l'heure désirée courante
-    const inpCurrent = document.getElementById('wind-dt');
-    if (inpCurrent) {
-      const val = parseDesiredToLocalInput(window.WIND_DESIRED_ISO) || formatLocalForInput(new Date());
-      inpCurrent.value = val;
-    }
-
-    // Sonde au clic (une seule liaison)
-    if (!window._windProbeBound) {
-      map.on('click', (e) => {
-        // Ne pas afficher le popup météo si la couche de vent est masquée
-        try {
-          const layer = (typeof window !== 'undefined') ? window._windBarbLayer : null;
-          const mapOk = (typeof map !== 'undefined' && map && typeof map.hasLayer === 'function');
-          const visibleByLayer = !!(mapOk && layer && map.hasLayer(layer));
-          const visibleByState = !!(typeof window !== 'undefined' && window.AppState && window.AppState.isWindLayerVisible);
-          if (!visibleByLayer && !visibleByState) return; // couche non visible → pas de popup
-        } catch(_eVis) { /* ignore */ }
-
-        const list = (typeof window !== 'undefined' && Array.isArray(window._lastWindBarbs)) ? window._lastWindBarbs : [];
-        if (!list || list.length === 0) return;
-        const { lat, lng } = e.latlng;
-        let best = null, bestD2 = Infinity;
-        for (const p of list) {
-          const dlat = p.lat - lat;
-          const dlng = (p.lng ?? p.lon) - lng;
-          const d2 = dlat*dlat + dlng*dlng;
-          if (d2 < bestD2) { bestD2 = d2; best = p; }
-        }
-        const meta = (typeof window !== 'undefined' && window._lastWindMeta) ? window._lastWindMeta : { refUtcStr: '', refLocalStr: '' };
-        if (best) {
-          const avgLine = (typeof best.avgKt === 'number' && isFinite(best.avgKt))
-            ? `Vent moyen: <b>${best.avgKt.toFixed(1)} kt</b><br/>`
-            : '';
-          const gustLine = (typeof best.gustKt === 'number' && isFinite(best.gustKt))
-            ? `Rafales: <b>${best.gustKt.toFixed(1)} kt</b><br/>`
-            : '';
-          const speedLine = (!avgLine && !gustLine)
-            ? `Vitesse: <b>${(best.speed||0).toFixed(1)} kt</b><br/>`
-
-
-            : '';
-          const html = `<div style="font-size:12px;line-height:1.2">
-              <b>Vent (point le plus proche)</b><br/>
-              ${avgLine}${gustLine}${speedLine}
-              Direction: <b>${best.dir.toFixed(0)}°</b><br/>
-              Data ref (UTC): ${meta.refUtcStr || '—'}<br/>
-              Local: ${meta.refLocalStr || '—'}
-          </div>`;
-          L.popup({ closeButton: true, autoClose: true })
-              .setLatLng(e.latlng)
-              .setContent(html)
-              .openOn(map);
-        }
-      });
-      window._windProbeBound = true;
-    }
-  } catch (e) {
-    console.warn('Meta/diagnostic wind info failed:', e);
-  }
-
-  // Créer un pane dédié au-dessus des tuiles pour garantir la visibilité
-  if (!map.getPane('windbarbs')) {
-    map.createPane('windbarbs');
-    const p = map.getPane('windbarbs');
-    // Assurer que les popups Leaflet (popupPane ~700) apparaissent au-dessus des barbules
-    p.style.zIndex = 650;
-    p.style.pointerEvents = 'none';
-  }
-
-  // Fallback de test si aucun point valide
-  const dataForLayer = (barbs && barbs.length > 0) ? barbs : (function(){
-    const c = map.getCenter ? map.getCenter() : { lat: 0, lng: 0 };
-    console.warn("Aucune barbule issue des données — ajout d'un point test");
-    return [{ lat: c.lat, lon: c.lng, lng: c.lng, dir: 90, speed: 15 }];
-  })();
-
-  // Construire ou réutiliser la couche persistante
-  const group = persistentGroup || L.layerGroup([], { pane: 'windbarbs' });
+  // Options et rotation similaires à loadWind
   const opts = { size: 44, color: '#000', fillColor: '#000', strokeColor: '#000', opacity: 0.95, pane: 'windbarbs', interactive: false };
   const _rot180 = (typeof window !== 'undefined' && window.WIND_BARBS_ROTATE_PLUS_180 === true);
   const _rotOffset = (typeof window !== 'undefined' && Number.isFinite(window.WIND_BARBS_ROTATE_OFFSET)) ? (+window.WIND_BARBS_ROTATE_OFFSET) : 0;
-  try { console.log('Wind barbs rotation +180 active:', _rot180); } catch(e) {}
-  try { console.log('Wind barbs rotation offset (deg):', _rotOffset); } catch(e) {}
 
-  // Vérifier encore la fraîcheur de la requête avant de peupler la couche
-  if (!isCurrent()) { try { console.log('[WIND] req#', mySeq, 'stale → ignore (before markers)'); } catch(e) {} return; }
-
-  // Vider le groupe persistant uniquement si cette requête est la plus récente
-  try {
-    if (persistentGroup && typeof persistentGroup.clearLayers === 'function') {
-      persistentGroup.clearLayers();
-    }
-  } catch(_e) {}
-
-  dataForLayer.forEach(p => {
-    const ll = [p.lat, (p.lon ?? p.lng)];
-    const dirAdj = (((_rot180 ? (p.dir + 180) : p.dir) + _rotOffset) % 360 + 360) % 360;
+  for (const p of points) {
     try {
+      const ll = [p.lat, (p.lon ?? p.lng)];
+      const dirAdj = (((_rot180 ? (p.dir + 180) : p.dir) + _rotOffset) % 360 + 360) % 360;
+
+      // Tenter d'utiliser le plugin si disponible
       if (typeof L.windBarb === 'function') {
         const m = L.windBarb(ll, p.speed, dirAdj, opts);
-        group.addLayer(m);
+        layer.addLayer(m);
+        continue;
       } else if (typeof L.WindBarb === 'function') {
         const m = new L.WindBarb(ll, p.speed, dirAdj, opts);
-        group.addLayer(m);
+        layer.addLayer(m);
+        continue;
       }
-    } catch (e) {
-      console.warn('windBarb creation failed at', p, e);
-    }
-  });
 
-  console.log('wind barbs via plugin:', group.getLayers().length, 'req#', mySeq);
-
-  // S'assurer que la couche est bien ajoutée une seule fois à la carte
-  try {
-    if (!isCurrent()) { try { console.log('[WIND] req#', mySeq, 'stale → detach/skip (attach layer)'); } catch(e) {} return; }
-    if (!window._windBarbLayer) {
-      group.addTo(map);
-      window._windBarbLayer = group;
-    } else if (window._windBarbLayer !== group) {
-      // cas rare: ancienne ref différente → remplacer proprement
-      if (map && typeof map.removeLayer === 'function') {
-        try { map.removeLayer(window._windBarbLayer); } catch(e) {}
+      // Sinon: créer des marqueurs simples à partir du SVG fourni dans points[i].icon.svg
+      const size = (p.icon && Number.isFinite(p.icon.size)) ? p.icon.size : 44;
+      let html = (p.icon && typeof p.icon.svg === 'string') ? p.icon.svg : '';
+      if (!html || html.indexOf('<svg') === -1) {
+        // Fallback très simple si aucun SVG pré-calculé n'est fourni
+        const dir = Number.isFinite(p.dir) ? p.dir : 0;
+        html = `\n<svg width="${size}" height="${size}" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">\n  <g transform="rotate(${dir},32,32)">\n    <line x1="32" y1="54" x2="32" y2="10" stroke="#000" stroke-width="2" stroke-linecap="round"/>\n  </g>\n</svg>`;
       }
-      group.addTo(map);
-      window._windBarbLayer = group;
-    } else {
-      // même groupe persistant: s'assurer qu'il est sur la carte
-      if (!map.hasLayer(group)) {
-        group.addTo(map);
-      }
-    }
-  } catch(e) { console.warn('Attach wind layer failed:', e); }
-
-  // Forcer un léger rafraîchissement visuel de la carte après mise à jour de la couche
-  try { refreshMapView(); } catch(_e) {}
-
-  if (group.getLayers().length === 0) {
-    console.warn('Plugin leaflet-windbarb non disponible — utilisation du rendu de secours SVG');
-    const size = opts.size || 44;
-    dataForLayer.forEach(p => {
-      const ll = [p.lat, (p.lon ?? p.lng)];
-      const color = opts.color || '#000';
-      const applyDir = (((_rot180 ? (p.dir + 180) : p.dir) + _rotOffset) % 360 + 360) % 360;
-      const kt = Math.max(0, Math.round((p.speed || 0) / 5) * 5);
-      let n10 = Math.floor(kt / 10);
-      let n5  = (kt % 10) >= 5 ? 1 : 0;
-      const shaftTopY = 4;
-      const shaftBotY = 22;
-      const shaftX    = 12;
-      const longLen   = 14;
-      const shortLen  = 8;
-      const thetaDeg  = (typeof window !== 'undefined' && typeof window.WIND_BARBS_TICK_ANGLE_DEG === 'number') ? window.WIND_BARBS_TICK_ANGLE_DEG : 50;
-      const rad       = Math.PI * thetaDeg / 180;
-      const dxLong    = longLen * Math.cos(rad);
-      const dyLong    = longLen * Math.sin(rad);
-      const dxShort   = shortLen * Math.cos(rad);
-      const dyShort   = shortLen * Math.sin(rad);
-      const spacing   = (typeof window !== 'undefined' && typeof window.WIND_BARBS_SPACING === 'number') ? window.WIND_BARBS_SPACING : 4.0;
-      const shaftLen  = shaftBotY - shaftTopY;
-      const maxBars   = Math.max(0, Math.floor((shaftLen - 2) / spacing));
-      const seq = Array(n10).fill('L').concat(Array(n5).fill('S')).slice(0, maxBars);
-      let yAlong = shaftTopY + 2; // première barbule légèrement sous la pointe pour éviter tout rognage
-      const tickLines = [];
-      const snap = (n) => Math.round(n) + 0.5; // aligner sur 0.5 px pour des traits 1px nets
-      for (let k = 0; k < seq.length; k++) {
-        const isLong = seq[k] === 'L';
-        const dx = isLong ? dxLong : dxShort;
-        const dy = isLong ? dyLong : dyShort;
-        const x1 = shaftX;
-        const y1 = yAlong;
-        const x2 = shaftX + dx;
-        const y2 = yAlong - dy;
-        tickLines.push(`<line x1="${snap(x1)}" y1="${snap(y1)}" x2="${snap(x2)}" y2="${snap(y2)}" stroke="${color}" stroke-width="1" stroke-linecap="round"/>`);
-        yAlong += spacing;
-      }
-      const svg = `\n<svg width="${size}" height="${size}" viewBox="0 -8 24 32" xmlns="http://www.w3.org/2000/svg" style="overflow:visible" overflow="visible">\n  <g transform="rotate(${applyDir},12,12)">\n    <line x1="${shaftX}" y1="${shaftBotY}" x2="${shaftX}" y2="${shaftTopY}" stroke="${color}" stroke-width="1" stroke-linecap="round"/>\n    ${tickLines.join('')}\n  </g>\n</svg>`;
-      const icon = L.divIcon({
-        className: 'windbarb-fallback',
-        html: svg,
-        iconSize: [size, size],
-        iconAnchor: [Math.round(size/2), Math.round(size*0.85)]
-      });
-      const marker = L.marker(ll, { icon, pane: 'windbarbs', interactive: false });
-      group.addLayer(marker);
-    });
+      const icon = L.divIcon({ className: 'windbarb', html, iconSize: [size, size] });
+      const m = L.marker(ll, { icon, pane: 'windbarbs', interactive: false });
+      layer.addLayer(m);
+    } catch(_e1) { /* ignore a single point */ }
   }
-
-  if (group.getLayers().length === 0) {
-    console.warn('Aucune barbule n\'a pu être créée (même en secours).');
-  }
-  // Déjà ajouté plus haut si nécessaire; s'assurer de la référence
-  if (typeof window !== 'undefined') {
-    window._windBarbLayer = group;
-  }
+  try { if (typeof map.invalidateSize === 'function') map.invalidateSize(false); } catch(_) {}
+  return layer;
 }
+
+async function loadWind() {
+
+    // 1) Charger wind.json
+    let resp;
+    try {
+        resp = await fetch("wind.json?ts=" + Date.now(), { cache: "no-store" });
+    } catch (e) {
+        console.error("Erreur réseau sur wind.json", e);
+        return;
+    }
+    if (!resp.ok) {
+        console.error("Impossible de charger wind.json");
+        return;
+    }
+
+    let entries;
+    try {
+        entries = await resp.json();
+    } catch (e) {
+        console.error("wind.json invalide", e);
+        return;
+    }
+
+    if (!Array.isArray(entries) || entries.length < 2) {
+        console.error("wind.json ne contient pas U/V multi-échéances");
+        return;
+    }
+
+    // 2) Heure cible = celle choisie par l’utilisateur, sinon maintenant
+    let target = window._selectedWindTime instanceof Date
+        ? window._selectedWindTime
+        : new Date();
+
+    // 3) Regrouper les champs par forecastTime
+    const hours = {};
+    for (const e of entries) {
+        const ft = e.header.forecastTime;
+        if (!hours[ft]) hours[ft] = {};
+        if (e.header.shortName === "10u") hours[ft].u = e;
+        if (e.header.shortName === "10v") hours[ft].v = e;
+        if (e.header.shortName === "gust" || e.header.shortName === "fg10") hours[ft].gust = e;
+    }
+
+    // 4) Trouver l’échéance la plus proche
+    let best = null;
+    let bestDt = null;
+    let bestDiff = Infinity;
+
+    for (const ft in hours) {
+        const h = hours[ft];
+        if (!h.u || !h.v) continue;
+
+        const ref = new Date(h.u.header.refTime);
+        const valid = new Date(ref.getTime() + h.u.header.forecastTime * 3600 * 1000);
+
+        const diff = Math.abs(valid.getTime() - target.getTime());
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            best = h;
+            bestDt = valid;
+        }
+    }
+
+    if (!best) {
+        console.error("Aucune échéance exploitable");
+        return;
+    }
+
+    // 5) Construire les champs U/V pour gridToWindBarbs
+    const uField = {
+        header: best.u.header,
+        data: best.u.data
+    };
+
+    const vField = {
+        header: best.v.header,
+        data: best.v.data
+    };
+
+    const wind = [uField, vField];
+
+    // 6) Rafales
+    window._gustArray = best.gust ? best.gust.data : null;
+
+    // 7) Calculer les barbules
+    const barbs = gridToWindBarbs(wind);
+    window._lastWindBarbs = barbs;
+
+    // 8) Dessiner les barbules
+    if (typeof drawWindBarbs === "function") {
+        drawWindBarbs(barbs);
+    }
+
+    // 9) Heure pour popup
+    window._currentWindTime = bestDt;
+
+    // 10) Mettre à jour l’encart méta
+    const meta = document.getElementById("wind-meta");
+    if (meta) {
+        const avg = barbs.length && Number.isFinite(barbs[0].avgKt)
+            ? barbs[0].avgKt.toFixed(1)
+            : "?";
+
+        const gust = barbs.length && Number.isFinite(barbs[0].gustKt)
+            ? barbs[0].gustKt.toFixed(1)
+            : null;
+
+        const dateStr = bestDt.toLocaleString("fr-FR", {
+            weekday: "short",
+            day: "2-digit",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit"
+        });
+
+        meta.innerHTML = gust
+            ? `${dateStr}<br>Vent moyen : <b>${avg} kt</b> — Rafales : <b>${gust} kt</b>`
+            : `${dateStr}<br>Vent moyen : <b>${avg} kt</b>`;
+    }
+
+    // 11) IMPORTANT : ne pas toucher à #wind-dt
+}
+
+
+
 
 // Chargement initial: par défaut, NE PAS afficher la météo tant que l'utilisateur n'a pas cliqué sur le bouton.
 // Pour réactiver l'affichage automatique au démarrage, définir window.SHOW_WIND_ON_START = true avant l'init.
@@ -5216,7 +4894,7 @@ btn.addEventListener("click", () => {
 });
 
 
-// === Boutons météo (vent et rafales) : gestion de la couche de barbules ===
+
 // Utilisé par onclick="toggleVent()" (vent moyen) et onclick="toggleRafale()" (rafales)
 window.toggleVent = async function() {
   try {
@@ -5419,114 +5097,134 @@ window.toggleVent = async function() {
     return { lat: midLat, lng: midLon };
   }
 
-  async function loadIsobars(desiredOverride){
-    try{
-      // Déterminer l'heure demandée (réutilise le mécanisme du vent si présent)
-      let desired = (typeof desiredOverride === 'string' && desiredOverride.trim()) ? desiredOverride.trim()
-                  : (typeof window !== 'undefined' && typeof window.WIND_DESIRED_ISO === 'string' && window.WIND_DESIRED_ISO.trim()) ? window.WIND_DESIRED_ISO.trim()
-                  : formatLocalISO(new Date());
+  function normalizeLon(lon) {
+    return lon > 180 ? lon - 360 : lon;
+}
 
-      // Choisir la source principale: GRIB via /wind_at; fallback sur /wind.json
-      let url = '/wind_at?iso=' + encodeURIComponent(desired) + '&ts=' + Date.now();
-      let payload = null;
-      try{
-        const r = await fetch(url);
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        payload = await r.json();
-      } catch(e){
-        const r2 = await fetch('/wind.json?ts=' + Date.now());
-        if (!r2.ok) throw new Error('HTTP ' + r2.status);
-        payload = await r2.json();
-      }
+  async function loadIsobars(desiredOverride) {
+    try {
+        console.log(">>> loadIsobars() appelé avec :", desiredOverride);
+        // 1) Heure cible
+        const desired = desiredOverride || window.WIND_DESIRED_ISO || formatLocalISO(new Date());
+        const target = new Date(desired);
 
-      if (!payload) throw new Error('Aucune donnée météo');
-
-      // Trouver le champ de pression (hPa) correspondant
-      let pressure = null;
-      if (Array.isArray(payload)){
-        // Chercher un objet dont parameterNumberName contient 'pressure' ou dont l'unité est hPa
-        // On privilégie la présence d'un seul pas de temps renvoyé par /wind_at
-        pressure = payload.find(it => it && it.header && ((String(it.header.parameterNumberName||'').toLowerCase().includes('pressure')) || String(it.header.parameterUnit||'').toLowerCase()==='hpa'))
-                  || null;
-        // Si plusieurs heures, on prend le premier qui matche
-      } else if (payload && payload.header) {
-        pressure = payload;
-      }
-      if (!pressure || !pressure.header || !Array.isArray(pressure.data)){
-        console.warn('[ISOBARS] Pas de champ PRMSL trouvé');
-        return;
-      }
-
-      const hdr = pressure.header;
-      const nx = Number(hdr.nx), ny = Number(hdr.ny);
-      const lo1 = Number(hdr.lo1), la1 = Number(hdr.la1);
-      const lo2 = Number(hdr.lo2), la2 = Number(hdr.la2);
-      const data = pressure.data.map(Number);
-
-      // Déterminer une plage de niveaux (hPa) raisonnable d'après les données
-      let minP = Infinity, maxP = -Infinity;
-      for (const v of data){ if (isFinite(v)) { if (v<minP) minP=v; if (v>maxP) maxP=v; } }
-      if (!isFinite(minP) || !isFinite(maxP) || minP===maxP){
-        console.warn('[ISOBARS] Valeurs de pression invalides');
-        return;
-      }
-      // Pas de 4 hPa (classique). On centre dans l'intervalle observé
-      const start = Math.ceil(minP/4)*4;
-      const end = Math.floor(maxP/4)*4;
-      const levels = [];
-      for (let p=start; p<=end; p+=4) levels.push(p);
-      if (levels.length===0) levels.push(Math.round((minP+maxP)/2));
-
-      // Créer/vider la couche de polylignes
-      if (typeof window === 'undefined') return;
-      if (!window._isobarLayer){ window._isobarLayer = L.layerGroup(); }
-      const grp = window._isobarLayer;
-      try { grp.clearLayers(); } catch(e) {}
-
-      // Générer et ajouter les segments pour chaque niveau, avec étiquettes de pression (hPa)
-      for (const lvl of levels){
-        const segs = marchingSquares(data, nx, ny, lo1, la1, lo2, la2, lvl);
-        if (!segs || segs.length===0) continue;
-        const style = {
-          color: (lvl % 8 === 0) ? '#00008B' : '#2055aa',
-          weight: (lvl % 8 === 0) ? 1.2 : 1,
-          opacity: 0.8
-        };
-        const labelEvery = Math.max(1, Math.floor(segs.length / 12)); // ~12 labels par niveau max
-        let k = 0;
-        for (const seg of segs){
-          try{
-            // Découper les segments qui traversent l'anti-méridien pour éviter les traits autour du globe
-            const parts = splitIfCrossAntiMeridian(seg[0], seg[1]);
-            for (const part of parts){
-              L.polyline(part, style).addTo(grp);
-            }
-            // Placer une étiquette au milieu d'un segment sur n (en tenant compte d'un éventuel wrap)
-            if ((k % labelEvery) === 0) {
-              const a = seg[0], b = seg[1];
-              if (a && b && isFinite(a[0]) && isFinite(a[1]) && isFinite(b[0]) && isFinite(b[1])){
-                const mid = midpointSmart(a, b);
-                const icon = L.divIcon({
-                  className: 'isobar-label',
-                  html: '<span style="font-size:10px;color:#1a3f8b;background:rgba(255,255,255,0.7);padding:1px 3px;border-radius:2px;border:1px solid rgba(26,63,139,0.2);">'+ Math.round(lvl) +'</span>',
-                  iconSize: [0,0]
-                });
-                L.marker([mid.lat, mid.lng], { icon, interactive: false, keyboard: false }).addTo(grp);
-              }
-            }
-            k++;
-          } catch(_e){}
+        // 2) Charger /wind_at ou fallback wind.json
+        let payload = null;
+        try {
+            const r = await fetch('/wind_at?iso=' + encodeURIComponent(desired) + '&ts=' + Date.now());
+            if (!r.ok) throw new Error();
+            payload = await r.json();
+        } catch (e) {
+            const r2 = await fetch('/wind.json?ts=' + Date.now());
+            if (!r2.ok) throw new Error();
+            payload = await r2.json();
         }
-      }
 
-      // Attacher à la carte si le bouton est actif
-      if (typeof map!=='undefined' && map && typeof map.addLayer==='function'){
-        try{ grp.addTo(map);}catch(_e){}
-      }
-    } catch(err){
-      console.warn('[ISOBARS] Échec chargement isobares:', err);
+        if (!payload) {
+            console.warn("[ISOBARS] Pas de données");
+            return;
+        }
+
+        // 3) Trouver TOUS les champs PRMSL
+        const prmslList = [];
+        if (Array.isArray(payload)) {
+            for (const it of payload) {
+                if (!it || !it.header) continue;
+                const sn = (it.header.shortName || "").toLowerCase();
+                const n  = (it.header.parameterNumberName || "").toLowerCase();
+                const u  = (it.header.parameterUnit || "").toLowerCase();
+                const isP = sn === "prmsl" || sn === "msl" || n.includes("pressure") || u === "hpa";
+                if (isP) prmslList.push(it);
+            }
+        } else if (payload.header) {
+            prmslList.push(payload);
+        }
+
+        if (!prmslList.length) {
+            console.warn("[ISOBARS] Aucun champ PRMSL trouvé");
+            return;
+        }
+
+        // 4) Sélectionner l’échéance PRMSL la plus proche
+        let best = null;
+        let bestDiff = Infinity;
+
+        for (const it of prmslList) {
+            const ref = new Date(it.header.refTime);
+            const valid = new Date(ref.getTime() + it.header.forecastTime * 3600 * 1000);
+            const diff = Math.abs(valid.getTime() - target.getTime());
+            if (diff < bestDiff) {
+                bestDiff = diff;
+                best = it;
+            }
+        }
+
+        if (!best) {
+            console.warn("[ISOBARS] Aucun PRMSL sélectionné");
+            return;
+        }
+
+        // 5) Extraire la grille
+        const hdr = best.header;
+        const nx = hdr.nx, ny = hdr.ny;
+        let lo1 = hdr.lo1, lo2 = hdr.lo2;
+        const la1 = hdr.la1, la2 = hdr.la2;
+
+        // Normaliser longitudes 0–360 → -180–180
+        const normalizeLon = lon => lon > 180 ? lon - 360 : lon;
+        lo1 = normalizeLon(lo1);
+        lo2 = normalizeLon(lo2);
+
+        // 6) Convertir pression en hPa
+        const raw = best.data.map(Number);
+        const unit = (hdr.parameterUnit || "").toLowerCase();
+        let factor = 1;
+        if (unit === "pa") factor = 0.01;
+        if (unit === "kpa") factor = 10;
+        if (unit === "bar") factor = 1000;
+        const dataHPa = raw.map(v => v * factor);
+
+        // 7) Déterminer niveaux
+        let minP = Math.min(...dataHPa.filter(v => isFinite(v)));
+        let maxP = Math.max(...dataHPa.filter(v => isFinite(v)));
+        const start = Math.ceil(minP / 4) * 4;
+        const end   = Math.floor(maxP / 4) * 4;
+        const levels = [];
+        for (let p = start; p <= end; p += 4) levels.push(p);
+
+        // 8) Préparer la couche
+        if (!window._isobarLayer) window._isobarLayer = L.layerGroup();
+        const grp = window._isobarLayer;
+        grp.clearLayers();
+
+        // 9) Tracer les isobares
+        for (const lvl of levels) {
+            const segs = marchingSquares(dataHPa, nx, ny, lo1, la1, lo2, la2, lvl);
+            if (!segs || !segs.length) continue;
+
+            const style = {
+                color: (lvl % 8 === 0) ? '#00008B' : '#2055aa',
+                weight: (lvl % 8 === 0) ? 1.2 : 1,
+                opacity: 0.8
+            };
+
+            for (const seg of segs) {
+                const parts = splitIfCrossAntiMeridian(seg[0], seg[1]);
+                for (const part of parts) {
+                    L.polyline(part, style).addTo(grp);
+                }
+            }
+
+
+        }
+
+        // 10) Ajouter à la carte
+        if (typeof map !== "undefined") grp.addTo(map);
+
+    } catch (err) {
+        console.warn("[ISOBARS] Erreur :", err);
     }
-  }
+}
 
   // Bascule via le bouton (même logique que toggleVent)
   window.toggleIsobare = async function(){
@@ -5564,4 +5262,66 @@ window.toggleVent = async function() {
       console.warn('toggleIsobare failed:', e);
     }
   }
+  window.loadIsobars = loadIsobars;
+
 })();
+
+const timeCtl = document.createElement("div");
+timeCtl.id = "wind-time-ctrl";
+timeCtl.style.position = "absolute";
+timeCtl.style.top = "10px";
+timeCtl.style.right = "10px";
+timeCtl.style.zIndex = 9999;
+timeCtl.style.background = "rgba(255,255,255,0.9)";
+timeCtl.style.padding = "6px";
+timeCtl.style.borderRadius = "4px";
+timeCtl.style.fontSize = "11px";
+
+timeCtl.innerHTML = `
+    <div style="display:flex; align-items:center; gap:6px;">
+      <label for="wind-dt" style="white-space:nowrap;">Heure :</label>
+      <input id="wind-dt" type="datetime-local" style="font-size:11px; padding:2px;" />
+    </div>
+    <div style="margin-top:6px; display:flex; gap:6px; justify-content:flex-end;">
+      <button id="wind-apply" style="font-size:11px; padding:2px 6px;">Appliquer</button>
+      <button id="wind-now" style="font-size:11px; padding:2px 6px;">Maintenant</button>
+    </div>
+`;
+
+document.body.appendChild(timeCtl);
+
+// Handlers
+document.getElementById('wind-apply').addEventListener('click', async function() {
+    const dt = document.getElementById('wind-dt').value;
+    if (dt) {
+
+        // 1) Mettre à jour l’heure globale
+        window.WIND_DESIRED_ISO = dt;
+
+        // 2) Mettre à jour l’heure du vent
+        window._selectedWindTime = new Date(dt);
+
+        // 3) Recharger vent + isobares synchronisés
+        loadWind();
+        loadIsobars(dt);
+    }
+});
+
+
+document.getElementById('wind-now').addEventListener('click', async function() {
+    const now = new Date();
+    const iso = now.toISOString().slice(0,16);
+
+    document.getElementById('wind-dt').value = iso;
+
+    // 1) Mettre à jour l’heure globale
+    window.WIND_DESIRED_ISO = iso;
+
+    // 2) Mettre à jour l’heure du vent
+    window._selectedWindTime = now;
+
+    // 3) Recharger vent + isobares synchronisés
+    loadWind();
+    loadIsobars(iso);
+});
+
