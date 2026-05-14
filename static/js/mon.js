@@ -437,7 +437,12 @@ function refreshMapView() {
 
 if (!window._windProbeBound) {
     map.on('click', (e) => {
-
+        
+        // Ne pas afficher le popup Vent si la couche Vent n'est pas active/visible
+        try {
+            if (window.AppState && window.AppState.isWindLayerVisible !== true) return;
+        } catch(_e){}
+        
         const list = window._lastWindBarbs || [];
         if (!list.length) return;
 
