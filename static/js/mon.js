@@ -5213,6 +5213,16 @@ window.toggleVent = async function() {
                 for (const part of parts) {
                     L.polyline(part, style).addTo(grp);
                 }
+                // Ajouter un label de pression au milieu du segment (gestion anti-méridien via midpointSmart)
+                try {
+                    const mid = midpointSmart(seg[0], seg[1]);
+                    const lbl = L.divIcon({
+                        className: 'isobar-label',
+                        html: String(lvl),
+                        iconSize: null
+                    });
+                    L.marker([mid.lat, mid.lng], { icon: lbl, interactive: false }).addTo(grp);
+                } catch(_eLbl) {}
             }
 
 
