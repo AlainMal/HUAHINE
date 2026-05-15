@@ -5284,7 +5284,7 @@ window.toggleVent = async function() {
 const timeCtl = document.createElement("div");
 timeCtl.id = "wind-time-ctrl";
 timeCtl.style.position = "absolute";
-timeCtl.style.top = "10px";
+timeCtl.style.top = "100px";
 timeCtl.style.right = "10px";
 timeCtl.style.zIndex = 9999;
 timeCtl.style.background = "rgba(255,255,255,0.9)";
@@ -5302,7 +5302,8 @@ timeCtl.innerHTML = `
       <button id="wind-now" style="font-size:11px; padding:2px 6px;">Maintenant</button>
     </div>
 `;
-
+// On ne l'affiche pas
+if (timeCtl) timeCtl.style.display = 'none';
 document.body.appendChild(timeCtl);
 
 // Handlers
