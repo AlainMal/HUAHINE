@@ -688,7 +688,7 @@ function drawWindBarbs(points) {
   return layer;
 }
 
-async function loadWind() {
+async function loadWind(desiredOverride) {
 
     // 1) Charger wind.json
     let resp;
@@ -716,10 +716,18 @@ async function loadWind() {
         return;
     }
 
-    // 2) Heure cible = celle choisie par l’utilisateur, sinon maintenant
-    let target = window._selectedWindTime instanceof Date
-        ? window._selectedWindTime
-        : new Date();
+    // 2) Heure cible = celle choisie par l’utilisateur, sinon maintenant (peut être passée en paramètre)
+    let target;
+    if (desiredOverride) {
+        target = (desiredOverride instanceof Date) ? new Date(desiredOverride.getTime()) : new Date(desiredOverride);
+    } else if (typeof window !== 'undefined' && window.WIND_DESIRED_ISO) {
+        target = new Date(window.WIND_DESIRED_ISO);
+    } else if (typeof window !== 'undefined' && window._selectedWindTime instanceof Date) {
+        target = window._selectedWindTime;
+    } else {
+        target = new Date();
+    }
+    if (!(target instanceof Date) || isNaN(target)) { target = new Date(); }
 
     // 3) Regrouper les champs par forecastTime
     const hours = {};
@@ -5192,10 +5200,10 @@ window.toggleVent = async function() {
         // 7) Déterminer niveaux
         let minP = Math.min(...dataHPa.filter(v => isFinite(v)));
         let maxP = Math.max(...dataHPa.filter(v => isFinite(v)));
-        const start = Math.ceil(minP / 4) * 4;
-        const end   = Math.floor(maxP / 4) * 4;
+        const start = Math.ceil(minP / 2) * 2;
+        const end   = Math.floor(maxP / 2) * 24;
         const levels = [];
-        for (let p = start; p <= end; p += 4) levels.push(p);
+        for (let p = start; p <= end; p += 2) levels.push(p);
 
         // 8) Préparer la couche
         if (!window._isobarLayer) window._isobarLayer = L.layerGroup();
@@ -5204,6 +5212,7 @@ window.toggleVent = async function() {
 
         // 9) Tracer les isobares
         for (const lvl of levels) {
+
             const segs = marchingSquares(dataHPa, nx, ny, lo1, la1, lo2, la2, lvl);
             if (!segs || !segs.length) continue;
 
@@ -5213,28 +5222,53 @@ window.toggleVent = async function() {
                 opacity: 0.8
             };
 
+            // 👉 On va stocker tous les points de l’isobare
+            const fullIso = [];
+
             for (const seg of segs) {
-                const parts = splitIfCrossAntiMeridian(seg[0], seg[1]);
-                for (const part of parts) {
-                    L.polyline(part, style).addTo(grp);
-                }
-                // Ajouter un label de pression au milieu du segment (gestion anti-méridien via midpointSmart)
-                try {
-                    const mid = midpointSmart(seg[0], seg[1]);
-                    const lbl = L.divIcon({
-                        className: 'isobar-label',
-                        html: String(lvl),
-                        iconSize: null
-                    });
-                    L.marker([mid.lat, mid.lng], { icon: lbl, interactive: false }).addTo(grp);
-                } catch(_eLbl) {}
+                // tracer la polyligne
+                L.polyline(seg, style).addTo(grp);
+
+                // accumuler les points
+                for (const pt of seg) fullIso.push(pt);
             }
 
+            // 👉 Si l’isobare est trop courte, un seul label
+            if (fullIso.length < 10) {
+                const mid = fullIso[Math.floor(fullIso.length / 2)];
+                const lbl = L.divIcon({
+                    className: 'isobar-label',
+                    html: String(lvl),
+                    iconSize: null
+                });
+                L.marker(mid, { icon: lbl, interactive: false }).addTo(grp);
+                continue;
+            }
 
+            // 👉 Sinon, on place 2 ou 3 labels
+            const labelCount = 3; // tu peux mettre 2 si tu veux
+            const step = Math.floor(fullIso.length / (labelCount + 1));
+
+            for (let i = 1; i <= labelCount; i++) {
+                const idx = i * step;
+                const mid = fullIso[idx];
+
+                const lbl = L.divIcon({
+                    className: 'isobar-label',
+                    html: String(lvl),
+                    iconSize: null
+                });
+
+                L.marker(mid, { icon: lbl, interactive: false }).addTo(grp);
+            }
         }
 
+
+
         // 10) Ajouter à la carte
-        if (typeof map !== "undefined") grp.addTo(map);
+        // 10) NE PAS ajouter à la carte automatiquement
+        // if (typeof map !== "undefined") grp.addTo(map);
+
 
     } catch (err) {
         console.warn("[ISOBARS] Erreur :", err);
@@ -5242,44 +5276,52 @@ window.toggleVent = async function() {
 }
 
   // Bascule via le bouton (même logique que toggleVent)
-  window.toggleIsobare = async function(){
-    try{
-      const btn = document.getElementById('isobareButton');
-      const hasMap = (typeof map !== 'undefined' && map && typeof map.hasLayer === 'function');
-      const layer = (typeof window !== 'undefined') ? window._isobarLayer : null;
-      const isVisible = !!(hasMap && layer && map.hasLayer(layer));
-
-      if (isVisible){
-        try { map.removeLayer(layer); } catch(e) {}
-        if (btn){ btn.classList.remove('active'); btn.title = 'Afficher les isobares'; }
-        if (typeof window !== 'undefined'){
-          window.AppState = window.AppState || {};
-          window.AppState.isIsobarVisible = false;
-        }
-        try { refreshMapView(); } catch(_e){}
-        return;
-      }
-
-      // Afficher => charger si nécessaire puis ajouter
-      if (!layer || (layer && typeof layer.getLayers==='function' && layer.getLayers().length===0)){
-        await loadIsobars();
-      }
-      if (typeof window !== 'undefined' && window._isobarLayer && hasMap && !map.hasLayer(window._isobarLayer)){
-        try { window._isobarLayer.addTo(map); } catch(e){}
-      }
-      if (btn){ btn.classList.add('active'); btn.title = 'Masquer les isobares'; }
-      if (typeof window !== 'undefined'){
+  window.toggleIsobare = async function () {
+    try {
+        const btn = document.getElementById('isobareButton');
         window.AppState = window.AppState || {};
-        window.AppState.isIsobarVisible = true;
-      }
-      try { refreshMapView(); } catch(_e2){}
-    } catch(e){
-      console.warn('toggleIsobare failed:', e);
+
+        // 1) Basculer l'état logique
+        window.AppState.isIsobarVisible = !window.AppState.isIsobarVisible;
+
+        // 2) Synchroniser le bouton
+        if (btn) {
+            btn.classList.toggle('active', window.AppState.isIsobarVisible);
+            btn.title = window.AppState.isIsobarVisible
+                ? 'Masquer les isobares'
+                : 'Afficher les isobares';
+        }
+
+        const hasMap = (typeof map !== 'undefined' && map && typeof map.hasLayer === 'function');
+        const layer = window._isobarLayer;
+
+        // 3) Ajouter ou retirer la couche selon l'état
+        if (window.AppState.isIsobarVisible) {
+            // Charger si nécessaire
+            if (!layer || (layer && typeof layer.getLayers === 'function' && layer.getLayers().length === 0)) {
+                await loadIsobars();
+            }
+            if (window._isobarLayer && hasMap && !map.hasLayer(window._isobarLayer)) {
+                window._isobarLayer.addTo(map);
+            }
+        } else {
+            // Retirer la couche
+            if (layer && hasMap && map.hasLayer(layer)) {
+                try { map.removeLayer(layer); } catch (e) {}
+            }
+        }
+
+        try { refreshMapView(); } catch (_e) {}
+
+    } catch (e) {
+        console.warn('toggleIsobare failed:', e);
     }
-  }
+}
+
   window.loadIsobars = loadIsobars;
 
 })();
+
 
 const timeCtl = document.createElement("div");
 timeCtl.id = "wind-time-ctrl";
@@ -5298,13 +5340,32 @@ timeCtl.innerHTML = `
       <input id="wind-dt" type="datetime-local" style="font-size:11px; padding:2px;" />
     </div>
     <div style="margin-top:6px; display:flex; gap:6px; justify-content:flex-end;">
-      <button id="wind-apply" style="font-size:11px; padding:2px 6px;">Appliquer</button>
+        <button id="wind-prev">◀️</button>
+        <span></span>
+        <button id="wind-next">▶️</button>
+          <button id="wind-apply" style="font-size:11px; padding:2px 6px;">Appliquer</button>
       <button id="wind-now" style="font-size:11px; padding:2px 6px;">Maintenant</button>
     </div>
 `;
 // On ne l'affiche pas
 if (timeCtl) timeCtl.style.display = 'none';
 document.body.appendChild(timeCtl);
+
+// Utilitaire: formate une date en heure locale pour un <input type="datetime-local">
+function formatLocalDateTime(d){
+  try{
+    const pad = n => String(n).padStart(2,'0');
+    const y = d.getFullYear();
+    const m = pad(d.getMonth()+1);
+    const day = pad(d.getDate());
+    const h = pad(d.getHours());
+    const min = pad(d.getMinutes());
+    return `${y}-${m}-${day}T${h}:${min}`;
+  } catch(e){
+    // Fallback: évite de crasher, utilise toISOString (UTC) en dernier recours
+    return (d instanceof Date ? d : new Date()).toISOString().slice(0,16);
+  }
+}
 
 // Handlers
 document.getElementById('wind-apply').addEventListener('click', async function() {
@@ -5318,15 +5379,17 @@ document.getElementById('wind-apply').addEventListener('click', async function()
         window._selectedWindTime = new Date(dt);
 
         // 3) Recharger vent + isobares synchronisés
-        loadWind();
-        loadIsobars(dt);
+        loadWind(dt);
+        if (window.AppState?.isIsobarVisible) {
+            loadIsobars(dt);
+        }
     }
 });
 
 
 document.getElementById('wind-now').addEventListener('click', async function() {
     const now = new Date();
-    const iso = now.toISOString().slice(0,16);
+    const iso = formatLocalDateTime(now);
 
     document.getElementById('wind-dt').value = iso;
 
@@ -5337,7 +5400,59 @@ document.getElementById('wind-now').addEventListener('click', async function() {
     window._selectedWindTime = now;
 
     // 3) Recharger vent + isobares synchronisés
-    loadWind();
-    loadIsobars(iso);
+    loadWind(iso);
+
+    if (window.AppState?.isIsobarVisible) {
+        loadIsobars(iso);
+    }
+
+
 });
 
+
+
+// Ajout: gestion des boutons Précédent/Suivant pour changer l'heure et appliquer automatiquement
+(function(){
+  function getWindInput() { return document.getElementById('wind-dt'); }
+  function getApplyBtn() { return document.getElementById('wind-apply'); }
+
+  function setWindTimeAndApply(dateObj) {
+    try {
+      const inp = getWindInput();
+      const applyBtn = getApplyBtn();
+      if (!inp || !applyBtn) return;
+      const iso = formatLocalDateTime(dateObj);
+      inp.value = iso; // met à jour l'heure affichée (heure locale)
+      // Déclenche le même flux que le bouton "Appliquer"
+      applyBtn.click();
+    } catch(e) {
+      console.error('Erreur setWindTimeAndApply:', e);
+    }
+  }
+
+  function getCurrentWindDate() {
+    const inp = getWindInput();
+    let baseStr = inp && inp.value ? inp.value : (window.WIND_DESIRED_ISO || null);
+    let d = baseStr ? new Date(baseStr) : new Date();
+    if (isNaN(d)) d = new Date();
+    return d;
+  }
+
+  const prevBtn = document.getElementById('wind-prev');
+  if (prevBtn) {
+    prevBtn.addEventListener('click', function(){
+      const base = getCurrentWindDate();
+      const d = new Date(base.getTime() - 60*60*1000); // -1h
+      setWindTimeAndApply(d);
+    });
+  }
+
+  const nextBtn = document.getElementById('wind-next');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', function(){
+      const base = getCurrentWindDate();
+      const d = new Date(base.getTime() + 60*60*1000); // +1h
+      setWindTimeAndApply(d);
+    });
+  }
+})();
