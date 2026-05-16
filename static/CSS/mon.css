@@ -532,6 +532,12 @@ strong {
     color: white !important;
 }
 
+#vaguesButton.active {
+    background: #00FF00 !important;
+    color: white !important;
+}
+
+
 /* Labels pour isobares */
 .isobar-label {
     font: 10px/10px Arial, sans-serif;

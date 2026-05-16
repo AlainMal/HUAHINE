@@ -311,6 +311,20 @@ function deactivateReverseButton() {
     btn.title = "Inverser la route";
 }
 
+function two(n){ return (n<10? '0':'') + n; }
+  function formatLocalISO(dt){
+    const y = dt.getFullYear();
+    const m = two(dt.getMonth()+1);
+    const d = two(dt.getDate());
+    const hh = two(dt.getHours());
+    const mm = two(dt.getMinutes());
+    const offMin = -dt.getTimezoneOffset();
+    const sign = offMin>=0 ? '+' : '-';
+    const a = Math.abs(offMin);
+    const oh = two(Math.floor(a/60));
+    const om = two(a%60);
+    return `${y}-${m}-${d}T${hh}:${mm}${sign}${oh}:${om}`;
+  }
 
 // ==============================================
 // 4. INITIALISATION DE LA CARTE ET DES COUCHES
@@ -466,12 +480,44 @@ if (!window._windProbeBound) {
         const avg = Number.isFinite(best.avgKt) ? best.avgKt.toFixed(1) : "?";
         const gust = Number.isFinite(best.gustKt) ? best.gustKt.toFixed(1) : null;
 
+        // Infos vagues au point cliqué (si disponibles)
+        let wavesInfo = "";
+        try {
+            const G = window._lastWavesGrids;
+            if (G && G.nx && G.ny && isFinite(G.dx) && isFinite(G.dy) && isFinite(G.lo1) && isFinite(G.la1)) {
+                let i = Math.round((e.latlng.lng - G.lo1) / G.dx);
+                let j = Math.round((e.latlng.lat - G.la1) / G.dy);
+                if (i < 0) i = 0; if (i >= G.nx) i = G.nx - 1;
+                if (j < 0) j = 0; if (j >= G.ny) j = G.ny - 1;
+                const idx = j * G.nx + i;
+                const sh = G.swellH ? G.swellH[idx] : null;
+                const sd = G.swellDir ? G.swellDir[idx] : null;
+                const wh = G.windSeaH ? G.windSeaH[idx] : null;
+                const wd = G.windSeaDir ? G.windSeaDir[idx] : null;
+                const ok = (v) => Number.isFinite(v) && v <= 9990;
+                if (ok(sh) && sh > 0.05) {
+                    wavesInfo += `Houle : <b>${sh.toFixed(1)} m</b>${ ok(sd) ? `, Dir <b>${Math.round(sd)}°</b>` : "" }<br/>`;
+                }
+                if (ok(wh) && wh > 0.05) {
+                    let dirTxt = "";
+                    if (ok(wd)) {
+                        dirTxt = `, Dir <b>${Math.round(wd)}°</b>`;
+                    } else if (best && Number.isFinite(best.dir)) {
+                        // Repli: utiliser la direction du vent (approximation) si mdww absent
+                        dirTxt = `, Dir <b>≈vent ${Math.round(best.dir)}°</b>`;
+                    }
+                    wavesInfo += `Vagues du vent : <b>${wh.toFixed(1)} m</b>${dirTxt}<br/>`;
+                }
+            }
+        } catch(_e) {}
+
         const html = `
             <div style="font-size:12px;line-height:1.2">
                 <b>Vent (point le plus proche)</b><br/>
                 Vent moyen : <b>${avg} kt</b><br/>
                 ${gust ? `Rafales : <b>${gust} kt</b><br/>` : ""}
                 Direction : <b>${best.dir.toFixed(0)}°</b><br/>
+                ${wavesInfo}
                 Échéance : ${dateStr}
             </div>
         `;
@@ -489,6 +535,10 @@ if (!window._windProbeBound) {
 map.createPane('isobarsPane');
 map.getPane('isobarsPane').style.zIndex = 800;
 map.getPane('isobarsPane').style.pointerEvents = 'none';
+map.createPane('wavesPane');
+map.getPane('wavesPane').style.zIndex = 450;
+map.getPane('wavesPane').style.pointerEvents = 'none';
+
 
 function gridToWindBarbs(wind) {
     const u = wind[0].data;
@@ -4985,22 +5035,9 @@ window.toggleVent = async function() {
 
 
 // === Isobares (PRMSL) : chargement et bascule d'affichage ===
-(function(){
+//(function(){
   // Petit utilitaire pour convertir un nombre à 2 chiffres
-  function two(n){ return (n<10? '0':'') + n; }
-  function formatLocalISO(dt){
-    const y = dt.getFullYear();
-    const m = two(dt.getMonth()+1);
-    const d = two(dt.getDate());
-    const hh = two(dt.getHours());
-    const mm = two(dt.getMinutes());
-    const offMin = -dt.getTimezoneOffset();
-    const sign = offMin>=0 ? '+' : '-';
-    const a = Math.abs(offMin);
-    const oh = two(Math.floor(a/60));
-    const om = two(a%60);
-    return `${y}-${m}-${d}T${hh}:${mm}${sign}${oh}:${om}`;
-  }
+
 
   // Marche de carrés simple: renvoie une liste de segments [ [lat,lng], [lat,lng] ] pour un niveau donné
   function marchingSquares(data, nx, ny, lo1, la1, lo2, la2, level) {
@@ -5126,7 +5163,7 @@ async function loadIsobars(desiredOverride) {
 
         // 1) Heure cible
         const desired = desiredOverride || window.WIND_DESIRED_ISO || formatLocalISO(new Date());
-        const target = new Date(desired);
+        const target = roundToHour(desired);
 
         // 2) Charger /wind_at ou fallback wind.json
         let payload = null;
@@ -5318,10 +5355,225 @@ async function loadIsobars(desiredOverride) {
     }
 }
 
-  window.loadIsobars = loadIsobars;
+ // window.loadIsobars = loadIsobars;
 
-})();
+;
 
+function toggleVagues() {
+    const btn = document.getElementById('vaguesButton');
+    const active = btn.classList.toggle('active');
+
+    if (active) {
+        // ON → charger les vagues
+        loadWaves();
+        btn.title = "Masquer les vagues";
+    } else {
+        // OFF → supprimer la couche
+        if (window._wavesLayer) {
+            window._wavesLayer.clearLayers();
+            map.removeLayer(window._wavesLayer);
+        }
+        btn.title = "Afficher les vagues";
+    }
+    // Assurer l'ajout de la couche en cas d'appel rapide
+    try { if (window._wavesLayer && map && !map.hasLayer(window._wavesLayer)) window._wavesLayer.addTo(map); } catch(e) {}
+}
+
+
+async function loadWaves(desiredOverride) {
+    try {
+        console.log(">>> loadWaves() appelé avec :", desiredOverride);
+        // Réinitialiser le cache des grilles vagues pour les popups
+        try {
+            window._lastWavesGrids = null;
+        } catch (_) {
+        }
+
+        // 1) Heure cible
+        // On synchronise avec l’heure du vent
+        const desired = desiredOverride
+            || window.WIND_DESIRED
+            || formatLocalISO(new Date());
+
+        const target = new Date(desired);
+
+        // 2) Charger /wind_at ou fallback wind.json
+        let payload = null;
+        try {
+            const r = await fetch('/wind_at?iso=' + encodeURIComponent(desired) + '&ts=' + Date.now());
+            if (!r.ok) throw new Error();
+            payload = await r.json();
+        } catch (e) {
+            const r2 = await fetch('/wind.json?ts=' + Date.now());
+            if (!r2.ok) throw new Error();
+            payload = await r2.json();
+        }
+
+        if (!payload || !Array.isArray(payload)) {
+            console.warn("[WAVES] Pas de données");
+            return;
+        }
+
+        // 3) Sélectionner les champs vagues (recherche tolérante et choix de l'heure la plus proche)
+        const byShort = new Map();
+        for (const it of payload) {
+            if (!it || !it.header) continue;
+            const sn = String(it.header.shortName || '').toLowerCase();
+            if (!sn) continue;
+            let ref = it.header.refTime ? new Date(it.header.refTime) : null;
+            const fcH = Number(it.header.forecastTime || 0);
+            const valid = ref && isFinite(ref) ? new Date(ref.getTime() + fcH * 3600 * 1000) : null;
+            if (!byShort.has(sn)) byShort.set(sn, []);
+            byShort.get(sn).push({it, valid});
+        }
+        // Trie par proximité temporelle
+        for (const arr of byShort.values()) {
+            arr.sort((a, b) => {
+                const da = a.valid ? Math.abs(a.valid - target) : Number.MAX_VALUE;
+                const db = b.valid ? Math.abs(b.valid - target) : Number.MAX_VALUE;
+                return da - db;
+            });
+        }
+
+        const pick = (cands) => {
+            for (const c of cands) {
+                const arr = byShort.get(c);
+                if (arr && arr.length) return arr[0].it;
+            }
+            return null;
+        };
+
+        const waves = {
+            swh: pick(['swh', 'htsgws']),          // Houle - hauteur
+            mwd: pick(['mwd', 'wvdir']),           // Houle - direction
+            mwp: pick(['mwp', 'wvper', 'perpw']),   // Houle - période
+            shww: pick(['shww']),                 // Vagues du vent - hauteur
+            mdww: pick(['mdww']),                 // Vagues du vent - direction
+            mpww: pick(['mpww'])                  // Vagues du vent - période
+        };
+
+        if (!waves.swh) {
+            const keys = Array.from(byShort.keys()).join(', ');
+            console.warn("[WAVES] Hauteur de vagues (swh/htsgws) manquante. shortName disponibles:", keys);
+            // Option: informer l'utilisateur une fois
+            try {
+                if (!window._warnedNoWaves) {
+                    window._warnedNoWaves = true;
+                    alert("Hauteur de vagues indisponible dans wind.json (/wind_at).\nChamps disponibles: " + keys);
+                }
+            } catch (_) {
+            }
+            return;
+        }
+
+        // 4) Préparer la couche/pane
+        if (!map.getPane('wavesPane')) {
+            map.createPane('wavesPane');
+            map.getPane('wavesPane').style.zIndex = 450;
+            map.getPane('wavesPane').style.pointerEvents = 'none';
+        }
+        if (!window._wavesLayer)
+            window._wavesLayer = L.layerGroup([], {pane: 'wavesPane'});
+
+        const grp = window._wavesLayer;
+        grp.clearLayers();
+
+        // 5) Extraire la grille
+        const hdr = waves.swh.header;
+        const nx = hdr.nx, ny = hdr.ny;
+        const lo1 = hdr.lo1, la1 = hdr.la1;
+        const dx = hdr.dx, dy = hdr.dy;
+
+        const swh = waves.swh.data;
+        const dirGrid = waves.mwd ? waves.mwd.data : (waves.mdww ? waves.mdww.data : null);
+        const perGrid = waves.mwp ? waves.mwp.data : (waves.mpww ? waves.mpww.data : null);
+
+        // Exposer les grilles pour enrichir le popup au clic carte
+        try {
+            window._lastWavesGrids = {
+                nx, ny, lo1, la1, dx, dy,
+                swellH: swh,
+                // Direction de houle: uniquement mwd/wvdir (pas de repli sur mdww)
+                swellDir: (waves.mwd ? waves.mwd.data : null),
+                windSeaH: waves.shww ? waves.shww.data : null,
+                // Direction des vagues du vent: mdww si disponible
+                windSeaDir: waves.mdww ? waves.mdww.data : null
+            };
+        } catch (_) {
+        }
+
+        // 6) Boucle sur la grille
+        // 6) Boucle sur la grille
+// (ANCIEN CODE SUPPRIMÉ ICI)
+
+// NOUVEAU CODE CANVAS
+        if (!window._wavesCanvasLayer) {
+            window._wavesCanvasLayer = L.canvasLayer({ pane: 'wavesPane' }).delegate({
+                onDrawLayer: function(info) {
+                    const ctx = info.canvas.getContext('2d');
+                    const map = info.map;
+                    ctx.clearRect(0, 0, info.canvas.width, info.canvas.height);
+
+                    const g = window._lastWavesGrids;
+                    if (!g || !g.swellH) return;
+
+                    const { nx, ny, lo1, la1, dx, dy, swellH } = g;
+
+                    for (let j = 0; j < ny; j++) {
+                        for (let i = 0; i < nx; i++) {
+                            const idx = j * nx + i;
+                            const h = swellH[idx];
+                            if (!isFinite(h) || h <= 0.05 || h > 9990) continue;
+
+                            const lat = la1 + j * dy;
+                            const lon = lo1 + i * dx;
+
+                            const color = waveColor(h);
+
+                            const p  = map.latLngToContainerPoint([lat, lon]);
+                            const p2 = map.latLngToContainerPoint([lat + dy, lon + dx]);
+                            const w  = Math.abs(p2.x - p.x);
+                            const hpx = Math.abs(p2.y - p.y);
+
+                            ctx.fillStyle = color;
+                            ctx.fillRect(p.x, p.y, w + 1, hpx + 1);
+                        }
+                    }
+                }
+            });
+
+            window._wavesCanvasLayer.addTo(map);
+        } else {
+            window._wavesCanvasLayer.needRedraw();
+        }
+
+
+} catch (err) {
+        console.warn("[WAVES] Erreur :", err);
+    }
+}
+
+function waveColor(h) {
+    if (h < 0.5) return "#00ffff";
+    if (h < 1.0) return "#00bfff";
+    if (h < 1.5) return "#0099ff";
+    if (h < 2.0) return "#0066ff";
+    if (h < 2.5) return "#0033ff";
+    if (h < 3.0) return "#0000ff";
+    if (h < 4.0) return "#0000cc";
+    if (h < 5.0) return "#000099";
+    if (h < 6.0) return "#000066";
+    if (h < 7.0) return "#330066";
+    if (h < 8.0) return "#660066";
+    if (h < 9.0) return "#990066";
+    return "#cc0066";
+}
+
+function roundToHour(date) {
+    const d = new Date(date);
+    d.setMinutes(0, 0, 0);
+    return d;
+}
 
 const timeCtl = document.createElement("div");
 timeCtl.id = "wind-time-ctrl";
@@ -5412,7 +5664,6 @@ document.getElementById('wind-now').addEventListener('click', async function() {
 
 
 // Ajout: gestion des boutons Précédent/Suivant pour changer l'heure et appliquer automatiquement
-(function(){
   function getWindInput() { return document.getElementById('wind-dt'); }
   function getApplyBtn() { return document.getElementById('wind-apply'); }
 
@@ -5454,5 +5705,4 @@ document.getElementById('wind-now').addEventListener('click', async function() {
       const d = new Date(base.getTime() + 60*60*1000); // +1h
       setWindTimeAndApply(d);
     });
-  }
-})();
+  };

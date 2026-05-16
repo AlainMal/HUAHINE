@@ -47,9 +47,13 @@ def main():
             shortName = codes_get(gid, "shortName")
 
             # Variables utiles (ajout de PRMSL)
-            if shortName not in ("10u", "10v", "gust", "fg10", "prmsl"):
-                codes_release(gid)
-                continue
+            if shortName not in (
+                    "10u", "10v", "gust", "fg10", "prmsl",
+                    "swh", "mwd", "mwp",
+                    "shww", "mdww", "mpww"
+                    ):
+                        codes_release(gid)
+                        continue
 
             # --- Temps ---
             dataDate = to_int(codes_get(gid, "dataDate"))
