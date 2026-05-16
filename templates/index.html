@@ -37,8 +37,10 @@
   </div>
 </div>
 <div class ="vent-container">
-    <button class="button" id="ventButton" onclick="toggleVent()" title="Afficher la météo">️<img src="{{ url_for('static', filename='icone/meteo.png') }}" alt="Vent météo" width="20" height="20"></button>
+     <button class="button" id="ventButton" onclick="toggleVent()" title="Afficher le vent météo">️<img src="{{ url_for('static', filename='icone/meteo.png') }}" alt="Vent météo" width="20" height="20"></button>
      <button class="button" id="isobareButton" onclick="toggleIsobare()" title="Afficher les isobares">️<img src="{{ url_for('static', filename='icone/isobare.png') }}" alt="Isobares météo" width="20" height="20"></button>
+     <button class="button" id="vaguesButton" onclick="toggleVagues()" title="Afficher les vagues">️<img src="{{ url_for('static', filename='icone/vagues.png') }}" alt="Vagues météo" width="20" height="20"></button>
+     <button class="button" id="OragesButton" onclick="toggleOrages()" title="Afficher les orages">️<img src="{{ url_for('static', filename='icone/orages.png') }}" alt="Orages météo" width="20" height="20"></button>
 </div>
 <!-- Menu sur la gauche -->
 <div class ="button-container">

@@ -1724,9 +1724,7 @@ const measureTool = {
                 <a href="#" id="saveRouteButton" class="measure-button" title="Sauvegarder la route" >
                     <img src="./static/icone/enregistrer.png" alt="Sauvegarder" width="16" height="16">
                 </a>
-                <a href="#" id="downloadRouteButton" class="measure-button" title="Télécharger la route en JSON" >
-                    <img src="./static/icone/telecharge.png" alt="Télécharger" width="16" height="16">
-                </a>
+                
                 <a href="#" id="loadRouteButton" class="measure-button" title="Charger une route">
                     <img src="./static/icone/charger.png" alt="Charger" width="25" height="25">
                 </a>`;
@@ -4931,7 +4929,7 @@ window.toggleVent = async function() {
       try { map.removeLayer(layer); } catch(e) {}
       if (btn) {
         btn.classList.remove('active');
-        btn.title = "Afficher la météo";
+        btn.title = "Afficher le vent météo";
       }
       // Masquer aussi les panneaux d'info/heure du vent (haut droite)
       try {
@@ -4975,7 +4973,7 @@ window.toggleVent = async function() {
 
     if (btn) {
       btn.classList.add('active');
-      btn.title = "Masquer la météo";
+      btn.title = "Masquer le vent météo";
     }
     if (typeof window !== 'undefined') window.AppState = window.AppState || {};
     if (window.AppState) window.AppState.isWindLayerVisible = true;
@@ -5278,6 +5276,14 @@ async function loadIsobars(desiredOverride) {
         // 1) Basculer l'état logique
         window.AppState.isIsobarVisible = !window.AppState.isIsobarVisible;
 
+        const meta = document.getElementById('wind-meta');
+        const timeCtl = document.getElementById('wind-time-ctrl');
+
+        if ( !window.AppState.isIsobarVisible){
+            if (timeCtl) timeCtl.style.display = 'none';
+        }else{
+            if (timeCtl) timeCtl.style.display = '';
+        }
         // 2) Synchroniser le bouton
         if (btn) {
             btn.classList.toggle('active', window.AppState.isIsobarVisible);
@@ -5341,7 +5347,7 @@ timeCtl.innerHTML = `
       <button id="wind-now" style="font-size:11px; padding:2px 6px;">Maintenant</button>
     </div>
 `;
-// On ne l'affiche pas
+// On ne l'affiche pas tout de suite
 if (timeCtl) timeCtl.style.display = 'none';
 document.body.appendChild(timeCtl);
 

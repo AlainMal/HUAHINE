@@ -461,7 +461,7 @@ strong {
 .vent-container {
     position: fixed;
     left: 10px;
-    top: 58%;
+    top: 55%;
     transform: translateY(-50%);
     z-index: 1000;
     display: flex;
@@ -473,7 +473,7 @@ strong {
 .button-container {
     position: fixed;
     left: 10px;
-    top: 80%;
+    top: 82%;
     transform: translateY(-50%);
     z-index: 1000;
     display: flex;
@@ -550,7 +550,7 @@ strong {
 .measure-button-container {
     position: fixed;
     left: 1px;
-    top: 35%;
+    top: 31%;
     transform: translateY(-50%);
     z-index: 1000;
     display: flex;
