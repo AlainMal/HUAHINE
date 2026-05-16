@@ -485,6 +485,11 @@ if (!window._windProbeBound) {
 // ==============================================
 // METEO ..........................
 // ==============================================
+// Pane pour les isobares et labels (au-dessus des barbules)
+map.createPane('isobarsPane');
+map.getPane('isobarsPane').style.zIndex = 800;
+map.getPane('isobarsPane').style.pointerEvents = 'none';
+
 function gridToWindBarbs(wind) {
     const u = wind[0].data;
     const v = wind[1].data;
@@ -5114,9 +5119,13 @@ window.toggleVent = async function() {
     return lon > 180 ? lon - 360 : lon;
 }
 
-  async function loadIsobars(desiredOverride) {
+let isobarsLayer = null;   // couche globale
+let isobarsLabels = null;  // labels éventuels
+
+async function loadIsobars(desiredOverride) {
     try {
         console.log(">>> loadIsobars() appelé avec :", desiredOverride);
+
         // 1) Heure cible
         const desired = desiredOverride || window.WIND_DESIRED_ISO || formatLocalISO(new Date());
         const target = new Date(desired);
@@ -5183,7 +5192,6 @@ window.toggleVent = async function() {
         let lo1 = hdr.lo1, lo2 = hdr.lo2;
         const la1 = hdr.la1, la2 = hdr.la2;
 
-        // Normaliser longitudes 0–360 → -180–180
         const normalizeLon = lon => lon > 180 ? lon - 360 : lon;
         lo1 = normalizeLon(lo1);
         lo2 = normalizeLon(lo2);
@@ -5201,12 +5209,14 @@ window.toggleVent = async function() {
         let minP = Math.min(...dataHPa.filter(v => isFinite(v)));
         let maxP = Math.max(...dataHPa.filter(v => isFinite(v)));
         const start = Math.ceil(minP / 2) * 2;
-        const end   = Math.floor(maxP / 2) * 24;
+        const end   = Math.floor(maxP / 2) * 2;
         const levels = [];
         for (let p = start; p <= end; p += 2) levels.push(p);
 
-        // 8) Préparer la couche
-        if (!window._isobarLayer) window._isobarLayer = L.layerGroup();
+        // 8) Préparer la couche dans le pane dédié
+        if (!window._isobarLayer)
+            window._isobarLayer = L.layerGroup([], { pane: 'isobarsPane' });
+
         const grp = window._isobarLayer;
         grp.clearLayers();
 
@@ -5222,31 +5232,15 @@ window.toggleVent = async function() {
                 opacity: 0.8
             };
 
-            // 👉 On va stocker tous les points de l’isobare
             const fullIso = [];
 
             for (const seg of segs) {
-                // tracer la polyligne
-                L.polyline(seg, style).addTo(grp);
-
-                // accumuler les points
+                L.polyline(seg, { ...style, pane: 'isobarsPane' }).addTo(grp);
                 for (const pt of seg) fullIso.push(pt);
             }
 
-            // 👉 Si l’isobare est trop courte, un seul label
-            if (fullIso.length < 10) {
-                const mid = fullIso[Math.floor(fullIso.length / 2)];
-                const lbl = L.divIcon({
-                    className: 'isobar-label',
-                    html: String(lvl),
-                    iconSize: null
-                });
-                L.marker(mid, { icon: lbl, interactive: false }).addTo(grp);
-                continue;
-            }
-
-            // 👉 Sinon, on place 2 ou 3 labels
-            const labelCount = 3; // tu peux mettre 2 si tu veux
+            // Labels
+            const labelCount = fullIso.length < 10 ? 1 : 3;
             const step = Math.floor(fullIso.length / (labelCount + 1));
 
             for (let i = 1; i <= labelCount; i++) {
@@ -5259,16 +5253,16 @@ window.toggleVent = async function() {
                     iconSize: null
                 });
 
-                L.marker(mid, { icon: lbl, interactive: false }).addTo(grp);
+                L.marker(mid, {
+                    icon: lbl,
+                    interactive: false,
+                    pane: 'isobarsPane'
+                }).addTo(grp);
             }
         }
 
-
-
         // 10) Ajouter à la carte
-        // 10) NE PAS ajouter à la carte automatiquement
-        // if (typeof map !== "undefined") grp.addTo(map);
-
+        grp.addTo(map);
 
     } catch (err) {
         console.warn("[ISOBARS] Erreur :", err);

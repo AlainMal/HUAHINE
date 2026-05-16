@@ -47,8 +47,15 @@ from Package.Constante import *
 
 # Méthode pour définir les ressource PATH ------------------------------------------------------------------------------
 def resource_path(relative_path):
-    base_path = getattr(sys, '_MEIPASS', os.path.abspath("."))
+    import sys, os
+    if hasattr(sys, '_MEIPASS'):
+        # Cas EXE PyInstaller
+        base_path = sys._MEIPASS
+    else:
+        # Cas exécution Python normale
+        base_path = os.path.dirname(os.path.abspath(sys.argv[0]))
     return os.path.join(base_path, relative_path)
+
 
 # ********************************** CLASSE MODÈLE DE LA TABLE *********************************************************
 # Cette classe sert de modèle à la table incluse dans MainWindow().

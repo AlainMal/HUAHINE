@@ -16,6 +16,7 @@ datas = [
     ('aide/static', 'aide/static'),
     ('boat_config.json', '.'),
     ('icones', 'icones'),
+    ('wind.json', '.')
 ]
 
 # Ajouter explicitement tous les fichiers static
