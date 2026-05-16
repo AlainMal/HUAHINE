@@ -485,11 +485,34 @@ if (!window._windProbeBound) {
         try {
             const G = window._lastWavesGrids;
             if (G && G.nx && G.ny && isFinite(G.dx) && isFinite(G.dy) && isFinite(G.lo1) && isFinite(G.la1)) {
-                let i = Math.round((e.latlng.lng - G.lo1) / G.dx);
-                let j = Math.round((e.latlng.lat - G.la1) / G.dy);
-                if (i < 0) i = 0; if (i >= G.nx) i = G.nx - 1;
-                if (j < 0) j = 0; if (j >= G.ny) j = G.ny - 1;
-                const idx = j * G.nx + i;
+                const { nx, ny, lo1, la1, dx, dy } = G;
+                const lo2 = lo1 + dx * (nx - 1);
+                const la2 = la1 + dy * (ny - 1);
+                const wrapLon = (lon) => { let L = lon; while(L < -180) L += 360; while(L > 180) L -= 360; return L; };
+                // Flips éventuels (même logique que le rendu)
+                const flipLR = (typeof window !== 'undefined' && window.WAVES_FLIP_LR === true);
+                const flipTB = (typeof window !== 'undefined' && window.WAVES_FLIP_TB === true);
+                function projectIJ(lat, lon){
+                    // tY selon la latitude entre la1->la2
+                    let tY = (la2 === la1) ? 0.5 : (lat - la1) / (la2 - la1);
+                    // tX selon la longitude le long du plus court arc
+                    let dlon = (lo2 - lo1);
+                    if (Math.abs(dlon) > 180) dlon = ((dlon % 360) + 540) % 360 - 180;
+                    const plon = lo1 + dlon * 0; // origin
+                    const L = wrapLon(lon);
+                    // amener L dans l'intervalle proche de lo1
+                    let rel = L - lo1;
+                    // normaliser rel au même domaine que dlon (-180..180)
+                    if (Math.abs(rel - dlon) < Math.abs(rel)) rel = rel - dlon; // minimal step, crude fix
+                    let tX = (dlon === 0) ? 0.5 : rel / dlon;
+                    if (flipLR) tX = 1 - tX;
+                    if (flipTB) tY = 1 - tY;
+                    return { i: Math.round(tX * nx - 0.5), j: Math.round(tY * ny - 0.5) };
+                }
+                let { i, j } = projectIJ(e.latlng.lat, e.latlng.lng);
+                if (i < 0) i = 0; if (i >= nx) i = nx - 1;
+                if (j < 0) j = 0; if (j >= ny) j = ny - 1;
+                const idx = j * nx + i;
                 const sh = G.swellH ? G.swellH[idx] : null;
                 const sd = G.swellDir ? G.swellDir[idx] : null;
                 const wh = G.windSeaH ? G.windSeaH[idx] : null;
@@ -5507,44 +5530,149 @@ async function loadWaves(desiredOverride) {
 // (ANCIEN CODE SUPPRIMÉ ICI)
 
 // NOUVEAU CODE CANVAS
-        if (!window._wavesCanvasLayer) {
-            window._wavesCanvasLayer = L.canvasLayer({ pane: 'wavesPane' }).delegate({
-                onDrawLayer: function(info) {
-                    const ctx = info.canvas.getContext('2d');
-                    const map = info.map;
-                    ctx.clearRect(0, 0, info.canvas.width, info.canvas.height);
+        // Si le plugin CanvasLayer n'est pas disponible (CDN bloqué, offline...), utiliser un repli simple avec des marqueurs
+        if (!(L && typeof L.canvasLayer === 'function')) {
+            console.warn('[WAVES] CanvasLayer indisponible, utilisation du rendu de repli (marqueurs échantillonnés).');
+            const g = window._lastWavesGrids;
+            if (g && g.swellH) {
+                const { nx, ny, lo1, la1, dx, dy, swellH } = g;
+                const lo2 = lo1 + dx * (nx - 1);
+                const la2 = la1 + dy * (ny - 1);
 
-                    const g = window._lastWavesGrids;
-                    if (!g || !g.swellH) return;
+                if (typeof window !== 'undefined') {
+                    if (typeof window.WAVES_FLIP_LR === 'undefined') window.WAVES_FLIP_LR = false;
+                    if (typeof window.WAVES_FLIP_TB === 'undefined') window.WAVES_FLIP_TB = false;
+                }
+                const flipLR = (typeof window !== 'undefined' && window.WAVES_FLIP_LR === true);
+                const flipTB = (typeof window !== 'undefined' && window.WAVES_FLIP_TB === true);
 
-                    const { nx, ny, lo1, la1, dx, dy, swellH } = g;
+                const wrapLon = (lon) => {
+                    let L = lon;
+                    while (L < -180) L += 360;
+                    while (L > 180) L -= 360;
+                    return L;
+                };
 
-                    for (let j = 0; j < ny; j++) {
-                        for (let i = 0; i < nx; i++) {
-                            const idx = j * nx + i;
-                            const h = swellH[idx];
-                            if (!isFinite(h) || h <= 0.05 || h > 9990) continue;
+                function ijToLatLon(i, j){
+                    let tX = (i + 0.5) / nx;
+                    let tY = (j + 0.5) / ny;
+                    if (flipLR) tX = 1 - tX;
+                    if (flipTB) tY = 1 - tY;
+                    const lat = la1 + tY * (la2 - la1);
+                    let dlon = (lo2 - lo1);
+                    if (Math.abs(dlon) > 180) {
+                        dlon = ((dlon % 360) + 540) % 360 - 180;
+                    }
+                    const lon = wrapLon(lo1 + tX * dlon);
+                    return { lat, lon };
+                }
 
-                            const lat = la1 + j * dy;
-                            const lon = lo1 + i * dx;
-
-                            const color = waveColor(h);
-
-                            const p  = map.latLngToContainerPoint([lat, lon]);
-                            const p2 = map.latLngToContainerPoint([lat + dy, lon + dx]);
-                            const w  = Math.abs(p2.x - p.x);
-                            const hpx = Math.abs(p2.y - p.y);
-
-                            ctx.fillStyle = color;
-                            ctx.fillRect(p.x, p.y, w + 1, hpx + 1);
-                        }
+                // Échantillonnage pour limiter le nombre de points
+                const stepX = Math.max(1, Math.floor(nx / 80));
+                const stepY = Math.max(1, Math.floor(ny / 60));
+                for (let j = 0; j < ny; j += stepY) {
+                    for (let i = 0; i < nx; i += stepX) {
+                        const idx = j * nx + i;
+                        const h = swellH[idx];
+                        if (!isFinite(h) || h <= 0.05 || h > 9990) continue;
+                        const { lat, lon } = ijToLatLon(i, j);
+                        const color = waveColor(h);
+                        const m = L.circleMarker([lat, lon], {
+                            radius: 2,
+                            color: color,
+                            weight: 1,
+                            opacity: 0.9,
+                            fillColor: color,
+                            fillOpacity: 0.8,
+                            pane: 'wavesPane'
+                        });
+                        grp.addLayer(m);
                     }
                 }
-            });
-
-            window._wavesCanvasLayer.addTo(map);
+                if (grp && map && !map.hasLayer(grp)) { try { grp.addTo(map); } catch(_){} }
+            }
         } else {
-            window._wavesCanvasLayer.needRedraw();
+            if (!window._wavesCanvasLayer) {
+                window._wavesCanvasLayer = L.canvasLayer({ pane: 'wavesPane' }).delegate({
+                    onDrawLayer: function(info) {
+                        const ctx = info.canvas.getContext('2d');
+                        const map = info.map;
+                        ctx.clearRect(0, 0, info.canvas.width, info.canvas.height);
+
+                        const g = window._lastWavesGrids;
+                        if (!g || !g.swellH) return;
+
+                        const { nx, ny, lo1, la1, dx, dy, swellH } = g;
+
+                        // Déduire les bornes opposées si absentes
+                        const lo2 = lo1 + dx * (nx - 1);
+                        const la2 = la1 + dy * (ny - 1);
+
+                        // Flips optionnels (comme pour les barbules) pour corriger d'éventuels modes de scan
+                        if (typeof window !== 'undefined') {
+                            if (typeof window.WAVES_FLIP_LR === 'undefined') window.WAVES_FLIP_LR = false;
+                            if (typeof window.WAVES_FLIP_TB === 'undefined') window.WAVES_FLIP_TB = false;
+                        }
+                        const flipLR = (typeof window !== 'undefined' && window.WAVES_FLIP_LR === true);
+                        const flipTB = (typeof window !== 'undefined' && window.WAVES_FLIP_TB === true);
+
+                        const wrapLon = (lon) => {
+                            let L = lon;
+                            while (L < -180) L += 360;
+                            while (L > 180) L -= 360;
+                            return L;
+                        };
+
+                        // Pré-calcul: convertir un index (i,j) en lat/lon par interpolation entre bornes
+                        function ijToLatLon(i, j){
+                            let tX = (i + 0.5) / nx; // centre de cellule X
+                            let tY = (j + 0.5) / ny; // centre de cellule Y
+                            if (flipLR) tX = 1 - tX;
+                            if (flipTB) tY = 1 - tY;
+                            const lat = la1 + tY * (la2 - la1);
+                            // Gestion éventuelle de l'antiméridien
+                            let dlon = (lo2 - lo1);
+                            if (Math.abs(dlon) > 180) {
+                                // Passer par l'antiméridien: choisir le plus court chemin modulo 360
+                                dlon = ((dlon % 360) + 540) % 360 - 180;
+                            }
+                            const lon = wrapLon(lo1 + tX * dlon);
+                            return { lat, lon };
+                        }
+
+                        for (let j = 0; j < ny; j++) {
+                            for (let i = 0; i < nx; i++) {
+                                const idx = j * nx + i;
+                                const h = swellH[idx];
+                                if (!isFinite(h) || h <= 0.05 || h > 9990) continue;
+
+                                const c = ijToLatLon(i, j);
+                                const color = waveColor(h);
+
+                                // Points centres et voisins pour largeur/hauteur axiales
+                                const pC = map.latLngToContainerPoint([c.lat, c.lon]);
+                                const pR = (i + 1 < nx) ? map.latLngToContainerPoint(Object.values(ijToLatLon(i + 1, j))) : map.latLngToContainerPoint([c.lat, c.lon + 1e-6]);
+                                const pB = (j + 1 < ny) ? map.latLngToContainerPoint(Object.values(ijToLatLon(i, j + 1))) : map.latLngToContainerPoint([c.lat - 1e-6, c.lon]);
+
+                                const w  = Math.abs(pR.x - pC.x);
+                                const hpx = Math.abs(pB.y - pC.y);
+
+                                ctx.fillStyle = color;
+                                const x = Math.round(pC.x);
+                                const y = Math.round(pC.y);
+                                const ww = Math.max(1, Math.round(w));
+                                const hh = Math.max(1, Math.round(hpx));
+                                ctx.fillRect(x, y, ww, hh);
+                            }
+                        }
+                    }
+                });
+
+                window._wavesCanvasLayer.addTo(map);
+                try { window._wavesCanvasLayer.needRedraw(); } catch(_) {}
+            } else {
+                window._wavesCanvasLayer.needRedraw();
+            }
         }
 
 
