@@ -1713,7 +1713,7 @@ const measureTool = {
 
             div.innerHTML = `
                 <a href="#" id="distanceMeasureButton" class="measure-button" title="Etablir les distances d'une route.">
-                    <img src="./static/icone/mesure.png" alt="Mesure" width="16" height="16">
+                    <img src="./static/icone/regle.png" alt="Mesure" width="20" height="20">
                 </a>
                 <a href="#" id="toggle-labels" class="measure-button" title="Masquer les étiquettes de distance.">
                     <img src="./static/icone/distance.png" alt="Mesure" width="16" height="16">
