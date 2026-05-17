@@ -1,3 +1,50 @@
+/*
+=====================================================================
+ Fichier: mon.js
+ Objet: Script principal de l'application cartographique (Leaflet)
+
+ Ce fichier regroupe:
+ - La configuration globale (CONFIG) et l'état applicatif centralisé (AppState)
+ - La gestion des couches météo (vent, isobares, vagues) et leurs contrôles
+ - Les interactions de la carte (popups, centrage, rafraîchissement visuel)
+ - Des utilitaires d'affichage (messages, time control, etc.)
+
+ Notes d'implémentation importantes:
+ - Les grilles GRIB (vent/vagues) peuvent contenir des valeurs manquantes (9999)
+   ou inadéquates (NaN, négatives). Toute interpolation/rendu doit filtrer ces
+   valeurs et produire de la transparence pour éviter des liserés proches des côtes.
+ - L'orientation (indexation) de la grille est uniformisée: l'indice ligne j croît
+   du Sud vers le Nord, et la conversion vers l'index 1D utilise: idx = (ny-1-j)*nx + i.
+ - Le rendu des vagues se fait via un canvas converti en PNG et ajouté dans un
+   L.imageOverlay (window._wavesOverlay). L'ancien LayerGroup _wavesLayer est gardé
+   pour compatibilité mais n'est plus la voie principale.
+ - Toute valeur affichée dans les popups est calculée avec la même méthode que le rendu
+   (interpolation bilinéaire) afin d'assurer la cohérence visuelle.
+
+ Style de code:
+ - Commentaires JSDoc ajoutés sur les fonctions clés.
+ - Commentaires en ligne sur les passages mathématiques (interpolation, indexation).
+
+ Table des matières (organisation logique du fichier):
+ - [S1] Configuration et constantes globales (CONFIG)
+ - [S2] État applicatif centralisé (AppState)
+ - [S3] Initialisation de la carte et des couches de base (Leaflet)
+ - [S4] Contrôles UI et gestion des événements (click/drag, affichage info)
+ - [S5] Chargement des données météo (GRIB/JSON) et parsers
+ - [S6] Rendu du vent (particules/streamlines, vitesse/direction)
+ - [S7] Rendu des vagues (canvas -> imageOverlay, palette dynamique)
+ - [S8] Rendu des isobares et champs de pression
+ - [S9] Popups/cohérence valeurs (interpolation bilinéaire unifiée)
+ - [S10] Enregistrement/trace, historiques et persistance
+ - [S11] Utilitaires, helpers génériques, gestion des messages
+ - [S12] Journalisation (logs) et gestion d'erreurs
+
+ Convention d'ancrage dans les entêtes de section:
+   // ==============================================
+   // [Sx] TITRE DE SECTION
+   // ==============================================
+=====================================================================
+*/
 // ==============================================
 // 1. CONFIGURATION ET CONSTANTES GLOBALES
 // ==============================================
@@ -449,6 +496,11 @@ function refreshMapView() {
     } catch(e) { /* ignore */ }
 }
 
+// Gestion du clic sur la carte pour afficher un popup "Vent" enrichi avec les vagues
+// - Récupère le barbule de vent le plus proche autour du point cliqué
+// - Échantillonne la hauteur de vagues (houle et vagues du vent) par interpolation bilinéaire
+//   en utilisant la même orientation et les mêmes garde‑fous que le rendu couleur.
+// - Affiche un popup synthétique cohérent avec les couches visibles.
 if (!window._windProbeBound) {
     map.on('click', (e) => {
         
@@ -4698,8 +4750,7 @@ function updateProjectionTime() {
         updateAISData();
     } else {
         showMessage('Veuillez entrer une valeur inférieur à 1440 minutes soit 24 heures.',"error");
-        input.value = AppState.projectionHours * 60;
-    }
+        input.value = AppState.projectionHours * 60;    }
 }
 
 const info = document.getElementById('info');
@@ -5402,6 +5453,17 @@ async function loadIsobars(desiredOverride) {
 
 ;
 
+/**
+ * Active/Désactive l'overlay PNG des vagues.
+ *
+ * - ON: déclenche le chargement/affichage des vagues via loadWaves() qui crée un L.imageOverlay
+ *        et l'attache à window._wavesOverlay.
+ * - OFF: retire explicitement l'overlay s'il est présent et nettoie les références (compatibilité avec l'ancien _wavesLayer).
+ *
+ * Effets de bord:
+ * - Met à jour le titre et l'état visuel du bouton #vaguesButton.
+ * - N'ajoute pas à nouveau la couche après une désactivation volontaire.
+ */
 function toggleVagues() {
     const btn = document.getElementById('vaguesButton');
     const active = btn.classList.toggle('active');
@@ -5433,6 +5495,24 @@ function toggleVagues() {
 }
 
 
+/**
+ * Charge et affiche les vagues (hauteur de houle, éventuellement mer du vent) pour l'heure désirée.
+ *
+ * Sources des données:
+ * - Tente d'abord /wind_at?iso=... (backend)
+ * - Repli vers /wind.json s'il n'y a pas de backend ou en cas d'erreur réseau
+ *
+ * Étapes:
+ * 1) Déterminer l'heure cible (alignée sur la sélection du vent quand c'est possible)
+ * 2) Filtrer les champs GRIB par shortName (swh/htsgws, mwd/wvdir, mwp/wvper, shww, mdww, mpww)
+ * 3) Exposer la grille dans window._lastWavesGrids pour les popups
+ * 4) Construire un overlay image (via renderWavesOverlay) et l'ajouter à la carte
+ *
+ * Remarque:
+ * - Ne modifie pas l'ancien LayerGroup; l'overlay courant est un L.imageOverlay dans window._wavesOverlay
+ *
+ * @param {string|Date} [desiredOverride] Horaire cible en ISO local ou objet Date; sinon utilise WIND_DESIRED ou maintenant.
+ */
 async function loadWaves(desiredOverride) {
     try {
         console.log(">>> loadWaves() appelé avec :", desiredOverride);
@@ -5573,6 +5653,20 @@ console.log("Grille vagues =", g);
     }
 }
 
+/**
+ * Construit un overlay image (PNG) représentant la hauteur de houle sur la zone du GRIB.
+ *
+ * Principe:
+ * - Parcourt un canvas fixe (W x H) en coordonnées géographiques (lon/lat)
+ * - Échantillonne la grille GRIB par interpolation bilinéaire (sampleHeight)
+ * - Convertit la hauteur en couleur via une palette dynamique (waveColorRGB)
+ * - Génère un DataURL PNG et le place dans un L.imageOverlay borné par [south/west, north/east]
+ *
+ * Transparence:
+ * - Les cellules manquantes/terre (>= 9990, NaN, < 0) rendent le pixel transparent (alpha 0) pour éviter les liserés côtiers.
+ *
+ * @param {Object} g Grille des vagues exposée par loadWaves() : {nx, ny, lo1, la1, dx, dy, swellH, ...}
+ */
 function renderWavesOverlay(g) {
     const { nx, ny, lo1, la1, dx, dy, swellH } = g;
 
@@ -5767,6 +5861,10 @@ function roundToHour(date) {
     return d;
 }
 
+// Contrôles d'heure pour la couche Vent/Isobares/Vagues
+// - Widget discret placé en haut à droite
+// - Permet de naviguer d'heure en heure (prev/next) et d'appliquer une date/heure précise
+// - Masqué/affiché selon la couche qui en a besoin
 const timeCtl = document.createElement("div");
 timeCtl.id = "wind-time-ctrl";
 timeCtl.style.position = "absolute";
