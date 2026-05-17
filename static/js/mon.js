@@ -5529,156 +5529,180 @@ async function loadWaves(desiredOverride) {
         // 6) Boucle sur la grille
 // (ANCIEN CODE SUPPRIMÉ ICI)
 
+const g = window._lastWavesGrids;
+console.log("Grille vagues =", g);
+
 // NOUVEAU CODE CANVAS
         // Si le plugin CanvasLayer n'est pas disponible (CDN bloqué, offline...), utiliser un repli simple avec des marqueurs
-        if (!(L && typeof L.canvasLayer === 'function')) {
-            console.warn('[WAVES] CanvasLayer indisponible, utilisation du rendu de repli (marqueurs échantillonnés).');
-            const g = window._lastWavesGrids;
-            if (g && g.swellH) {
-                const { nx, ny, lo1, la1, dx, dy, swellH } = g;
-                const lo2 = lo1 + dx * (nx - 1);
-                const la2 = la1 + dy * (ny - 1);
+        renderWavesOverlay(window._lastWavesGrids);
 
-                if (typeof window !== 'undefined') {
-                    if (typeof window.WAVES_FLIP_LR === 'undefined') window.WAVES_FLIP_LR = false;
-                    if (typeof window.WAVES_FLIP_TB === 'undefined') window.WAVES_FLIP_TB = false;
-                }
-                const flipLR = (typeof window !== 'undefined' && window.WAVES_FLIP_LR === true);
-                const flipTB = (typeof window !== 'undefined' && window.WAVES_FLIP_TB === true);
-
-                const wrapLon = (lon) => {
-                    let L = lon;
-                    while (L < -180) L += 360;
-                    while (L > 180) L -= 360;
-                    return L;
-                };
-
-                function ijToLatLon(i, j){
-                    let tX = (i + 0.5) / nx;
-                    let tY = (j + 0.5) / ny;
-                    if (flipLR) tX = 1 - tX;
-                    if (flipTB) tY = 1 - tY;
-                    const lat = la1 + tY * (la2 - la1);
-                    let dlon = (lo2 - lo1);
-                    if (Math.abs(dlon) > 180) {
-                        dlon = ((dlon % 360) + 540) % 360 - 180;
-                    }
-                    const lon = wrapLon(lo1 + tX * dlon);
-                    return { lat, lon };
-                }
-
-                // Échantillonnage pour limiter le nombre de points
-                const stepX = Math.max(1, Math.floor(nx / 80));
-                const stepY = Math.max(1, Math.floor(ny / 60));
-                for (let j = 0; j < ny; j += stepY) {
-                    for (let i = 0; i < nx; i += stepX) {
-                        const idx = j * nx + i;
-                        const h = swellH[idx];
-                        if (!isFinite(h) || h <= 0.05 || h > 9990) continue;
-                        const { lat, lon } = ijToLatLon(i, j);
-                        const color = waveColor(h);
-                        const m = L.circleMarker([lat, lon], {
-                            radius: 2,
-                            color: color,
-                            weight: 1,
-                            opacity: 0.9,
-                            fillColor: color,
-                            fillOpacity: 0.8,
-                            pane: 'wavesPane'
-                        });
-                        grp.addLayer(m);
-                    }
-                }
-                if (grp && map && !map.hasLayer(grp)) { try { grp.addTo(map); } catch(_){} }
-            }
-        } else {
-            if (!window._wavesCanvasLayer) {
-                window._wavesCanvasLayer = L.canvasLayer({ pane: 'wavesPane' }).delegate({
-                    onDrawLayer: function(info) {
-                        const ctx = info.canvas.getContext('2d');
-                        const map = info.map;
-                        ctx.clearRect(0, 0, info.canvas.width, info.canvas.height);
-
-                        const g = window._lastWavesGrids;
-                        if (!g || !g.swellH) return;
-
-                        const { nx, ny, lo1, la1, dx, dy, swellH } = g;
-
-                        // Déduire les bornes opposées si absentes
-                        const lo2 = lo1 + dx * (nx - 1);
-                        const la2 = la1 + dy * (ny - 1);
-
-                        // Flips optionnels (comme pour les barbules) pour corriger d'éventuels modes de scan
-                        if (typeof window !== 'undefined') {
-                            if (typeof window.WAVES_FLIP_LR === 'undefined') window.WAVES_FLIP_LR = false;
-                            if (typeof window.WAVES_FLIP_TB === 'undefined') window.WAVES_FLIP_TB = false;
-                        }
-                        const flipLR = (typeof window !== 'undefined' && window.WAVES_FLIP_LR === true);
-                        const flipTB = (typeof window !== 'undefined' && window.WAVES_FLIP_TB === true);
-
-                        const wrapLon = (lon) => {
-                            let L = lon;
-                            while (L < -180) L += 360;
-                            while (L > 180) L -= 360;
-                            return L;
-                        };
-
-                        // Pré-calcul: convertir un index (i,j) en lat/lon par interpolation entre bornes
-                        function ijToLatLon(i, j){
-                            let tX = (i + 0.5) / nx; // centre de cellule X
-                            let tY = (j + 0.5) / ny; // centre de cellule Y
-                            if (flipLR) tX = 1 - tX;
-                            if (flipTB) tY = 1 - tY;
-                            const lat = la1 + tY * (la2 - la1);
-                            // Gestion éventuelle de l'antiméridien
-                            let dlon = (lo2 - lo1);
-                            if (Math.abs(dlon) > 180) {
-                                // Passer par l'antiméridien: choisir le plus court chemin modulo 360
-                                dlon = ((dlon % 360) + 540) % 360 - 180;
-                            }
-                            const lon = wrapLon(lo1 + tX * dlon);
-                            return { lat, lon };
-                        }
-
-                        for (let j = 0; j < ny; j++) {
-                            for (let i = 0; i < nx; i++) {
-                                const idx = j * nx + i;
-                                const h = swellH[idx];
-                                if (!isFinite(h) || h <= 0.05 || h > 9990) continue;
-
-                                const c = ijToLatLon(i, j);
-                                const color = waveColor(h);
-
-                                // Points centres et voisins pour largeur/hauteur axiales
-                                const pC = map.latLngToContainerPoint([c.lat, c.lon]);
-                                const pR = (i + 1 < nx) ? map.latLngToContainerPoint(Object.values(ijToLatLon(i + 1, j))) : map.latLngToContainerPoint([c.lat, c.lon + 1e-6]);
-                                const pB = (j + 1 < ny) ? map.latLngToContainerPoint(Object.values(ijToLatLon(i, j + 1))) : map.latLngToContainerPoint([c.lat - 1e-6, c.lon]);
-
-                                const w  = Math.abs(pR.x - pC.x);
-                                const hpx = Math.abs(pB.y - pC.y);
-
-                                ctx.fillStyle = color;
-                                const x = Math.round(pC.x);
-                                const y = Math.round(pC.y);
-                                const ww = Math.max(1, Math.round(w));
-                                const hh = Math.max(1, Math.round(hpx));
-                                ctx.fillRect(x, y, ww, hh);
-                            }
-                        }
-                    }
-                });
-
-                window._wavesCanvasLayer.addTo(map);
-                try { window._wavesCanvasLayer.needRedraw(); } catch(_) {}
-            } else {
-                window._wavesCanvasLayer.needRedraw();
-            }
-        }
 
 
 } catch (err) {
         console.warn("[WAVES] Erreur :", err);
     }
+}
+
+function renderWavesOverlay(g) {
+    const { nx, ny, lo1, la1, dx, dy, swellH } = g;
+
+    // Compute opposite corner from grid spacing
+    const lo2_raw = lo1 + dx * (nx - 1);
+    const la2_raw = la1 + dy * (ny - 1);
+
+    // Leaflet requires bounds ordered as [[south, west], [north, east]].
+    // Some GRIBs have dy<0 (north->south) or dx<0 (east->west), so normalize here.
+    const west  = Math.min(lo1, lo2_raw);
+    const east  = Math.max(lo1, lo2_raw);
+    const south = Math.min(la1, la2_raw);
+    const north = Math.max(la1, la2_raw);
+
+    const W = 1024;
+    const H = 1024;
+
+    // Canvas interne
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+
+    const img = ctx.createImageData(W, H);
+    const data = img.data;
+
+    function sampleHeight(lat, lon) {
+        // Compute normalized positions along original grid axes (may be negative span)
+        const tx = (lon - lo1) / (lo2_raw - lo1);
+        const ty = (lat - la1) / (la2_raw - la1);
+
+        if (tx < 0 || tx > 1 || ty < 0 || ty > 1) return null;
+
+        const x = tx * (nx - 1);
+        const y = ty * (ny - 1);
+
+        const i = Math.floor(x);
+        const j = Math.floor(y);
+
+        if (i < 0 || i >= nx - 1 || j < 0 || j >= ny - 1) return null;
+
+        const a = x - i;
+        const b = y - j;
+
+        const idx = (ii, jj) => jj * nx + ii;
+
+        const h11 = swellH[idx(i, j)];
+        const h21 = swellH[idx(i + 1, j)];
+        const h12 = swellH[idx(i, j + 1)];
+        const h22 = swellH[idx(i + 1, j + 1)];
+
+        return (
+            h11 * (1 - a) * (1 - b) +
+            h21 * a * (1 - b) +
+            h12 * (1 - a) * b +
+            h22 * a * b
+        );
+    }
+
+    let p = 0;
+    for (let y = 0; y < H; y++) {
+        const lat = south + (y / H) * (north - south);
+
+        for (let x = 0; x < W; x++) {
+            const lon = west + (x / W) * (east - west);
+
+            const h = sampleHeight(lat, lon);
+
+            if (h === null || h <= 0.05 || h > 9990) {
+                data[p] = data[p+1] = data[p+2] = 0;
+                data[p+3] = 0;
+            } else {
+                const col = waveColorRGB(h);
+                data[p]   = col[0];
+                data[p+1] = col[1];
+                data[p+2] = col[2];
+                data[p+3] = 255;
+            }
+
+            p += 4;
+        }
+    }
+
+    ctx.putImageData(img, 0, 0);
+
+    // On supprime l'ancien overlay
+    // On supprime l'ancien overlay
+    if (window._wavesOverlay) {
+        map.removeLayer(window._wavesOverlay);
+    }
+
+    // Vérification
+    console.log("canvas =", canvas);
+    console.log("type =", typeof canvas);
+    console.log("ARGUMENT PASSE A imageOverlay =", canvas);
+    console.log("typeof =", typeof canvas);
+
+    // Convert canvas to data URL to avoid Leaflet trying to fetch a bogus URL
+    const dataUrl = canvas.toDataURL("image/png");
+
+    // On affiche l'image géoréférencée
+    window._wavesOverlay = L.imageOverlay(
+        dataUrl,
+        [[south, west], [north, east]],
+        { opacity: 0.8 }
+    ).addTo(map);
+
+
+}
+
+function cropCanvasToContent(canvas) {
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+    const img = ctx.getImageData(0, 0, w, h).data;
+
+    let minX = w, minY = h, maxX = 0, maxY = 0;
+    let found = false;
+
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const p = (y * w + x) * 4;
+            if (img[p+3] > 0) { // pixel non transparent
+                found = true;
+                if (x < minX) minX = x;
+                if (y < minY) minY = y;
+                if (x > maxX) maxX = x;
+                if (y > maxY) maxY = y;
+            }
+        }
+    }
+
+    if (!found) return canvas; // rien à découper
+
+    const newW = maxX - minX + 1;
+    const newH = maxY - minY + 1;
+
+    const cropped = document.createElement("canvas");
+    cropped.width = newW;
+    cropped.height = newH;
+
+    const ctx2 = cropped.getContext("2d");
+    ctx2.drawImage(canvas, minX, minY, newW, newH, 0, 0, newW, newH);
+
+    return { canvas: cropped, minX, minY, newW, newH };
+}
+
+
+function waveColorRGB(h) {
+    // Exemple de palette simple (à adapter si tu veux XyGrib)
+    if (h < 0.5) return [0, 150, 255];      // bleu clair
+    if (h < 1)   return [0, 120, 255];
+    if (h < 2)   return [0, 90, 255];
+    if (h < 3)   return [0, 60, 255];
+    if (h < 4)   return [0, 30, 255];
+    if (h < 5)   return [0, 0, 255];
+    if (h < 6)   return [255, 200, 0];      // jaune
+    if (h < 8)   return [255, 150, 0];
+    if (h < 10)  return [255, 100, 0];
+    return [255, 0, 0];                     // rouge
 }
 
 function waveColor(h) {
