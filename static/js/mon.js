@@ -486,38 +486,58 @@ if (!window._windProbeBound) {
             const G = window._lastWavesGrids;
             if (G && G.nx && G.ny && isFinite(G.dx) && isFinite(G.dy) && isFinite(G.lo1) && isFinite(G.la1)) {
                 const { nx, ny, lo1, la1, dx, dy } = G;
-                const lo2 = lo1 + dx * (nx - 1);
-                const la2 = la1 + dy * (ny - 1);
-                const wrapLon = (lon) => { let L = lon; while(L < -180) L += 360; while(L > 180) L -= 360; return L; };
-                // Flips éventuels (même logique que le rendu)
-                const flipLR = (typeof window !== 'undefined' && window.WAVES_FLIP_LR === true);
-                const flipTB = (typeof window !== 'undefined' && window.WAVES_FLIP_TB === true);
-                function projectIJ(lat, lon){
-                    // tY selon la latitude entre la1->la2
-                    let tY = (la2 === la1) ? 0.5 : (lat - la1) / (la2 - la1);
-                    // tX selon la longitude le long du plus court arc
-                    let dlon = (lo2 - lo1);
-                    if (Math.abs(dlon) > 180) dlon = ((dlon % 360) + 540) % 360 - 180;
-                    const plon = lo1 + dlon * 0; // origin
-                    const L = wrapLon(lon);
-                    // amener L dans l'intervalle proche de lo1
-                    let rel = L - lo1;
-                    // normaliser rel au même domaine que dlon (-180..180)
-                    if (Math.abs(rel - dlon) < Math.abs(rel)) rel = rel - dlon; // minimal step, crude fix
-                    let tX = (dlon === 0) ? 0.5 : rel / dlon;
-                    if (flipLR) tX = 1 - tX;
-                    if (flipTB) tY = 1 - tY;
-                    return { i: Math.round(tX * nx - 0.5), j: Math.round(tY * ny - 0.5) };
+                const lo2_raw = lo1 + dx * (nx - 1);
+                const la2_raw = la1 + dy * (ny - 1);
+
+                // Interpolation bilinéaire identique au rendu (même orientation d'indexation)
+                const invalid = (v) => !Number.isFinite(v) || v >= 9990 || v < 0;
+                const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+                function sampleBilinear(arr, lat, lon) {
+                    const tx = (lon - lo1) / (lo2_raw - lo1);
+                    const ty = (lat - la1) / (la2_raw - la1);
+                    if (!Number.isFinite(tx) || !Number.isFinite(ty) || tx < 0 || tx > 1 || ty < 0 || ty > 1) return null;
+                    const x = tx * (nx - 1);
+                    const y = ty * (ny - 1);
+                    const i = Math.floor(x);
+                    const j = Math.floor(y);
+                    if (i < 0 || i >= nx - 1 || j < 0 || j >= ny - 1) return null;
+                    const a = x - i;
+                    const b = y - j;
+                    const idx = (ii, jj) => (ny - 1 - jj) * nx + ii; // même que le rendu
+                    const h11 = arr[idx(i, j)];
+                    const h21 = arr[idx(i + 1, j)];
+                    const h12 = arr[idx(i, j + 1)];
+                    const h22 = arr[idx(i + 1, j + 1)];
+                    if (invalid(h11) || invalid(h21) || invalid(h12) || invalid(h22)) return null;
+                    return (
+                        h11 * (1 - a) * (1 - b) +
+                        h21 * a * (1 - b) +
+                        h12 * (1 - a) * b +
+                        h22 * a * b
+                    );
                 }
-                let { i, j } = projectIJ(e.latlng.lat, e.latlng.lng);
-                if (i < 0) i = 0; if (i >= nx) i = nx - 1;
-                if (j < 0) j = 0; if (j >= ny) j = ny - 1;
-                const idx = j * nx + i;
-                const sh = G.swellH ? G.swellH[idx] : null;
-                const sd = G.swellDir ? G.swellDir[idx] : null;
-                const wh = G.windSeaH ? G.windSeaH[idx] : null;
-                const wd = G.windSeaDir ? G.windSeaDir[idx] : null;
-                const ok = (v) => Number.isFinite(v) && v <= 9990;
+
+                function nearestIdx(lat, lon) {
+                    const tx = (lon - lo1) / (lo2_raw - lo1);
+                    const ty = (lat - la1) / (la2_raw - la1);
+                    if (!Number.isFinite(tx) || !Number.isFinite(ty)) return -1;
+                    const x = clamp(Math.round(tx * (nx - 1)), 0, nx - 1);
+                    const y = clamp(Math.round(ty * (ny - 1)), 0, ny - 1);
+                    return (ny - 1 - y) * nx + x; // même orientation que le rendu
+                }
+
+                const lat = e.latlng.lat;
+                const lon = e.latlng.lng;
+
+                const sh = (G.swellH && G.swellH.length === nx * ny) ? sampleBilinear(G.swellH, lat, lon) : null;
+                const wh = (G.windSeaH && G.windSeaH.length === nx * ny) ? sampleBilinear(G.windSeaH, lat, lon) : null;
+
+                const nidx = nearestIdx(lat, lon);
+                const sd = (nidx >= 0 && G.swellDir && G.swellDir.length > nidx) ? G.swellDir[nidx] : null;
+                const wd = (nidx >= 0 && G.windSeaDir && G.windSeaDir.length > nidx) ? G.windSeaDir[nidx] : null;
+
+                const ok = (v) => Number.isFinite(v) && v < 9990 && v >= 0;
                 if (ok(sh) && sh > 0.05) {
                     wavesInfo += `Houle : <b>${sh.toFixed(1)} m</b>${ ok(sd) ? `, Dir <b>${Math.round(sd)}°</b>` : "" }<br/>`;
                 }
@@ -5387,19 +5407,29 @@ function toggleVagues() {
     const active = btn.classList.toggle('active');
 
     if (active) {
-        // ON → charger les vagues
+        // ON → charger les vagues (crée et ajoute window._wavesOverlay)
         loadWaves();
         btn.title = "Masquer les vagues";
     } else {
-        // OFF → supprimer la couche
-        if (window._wavesLayer) {
-            window._wavesLayer.clearLayers();
-            map.removeLayer(window._wavesLayer);
-        }
+        // OFF → supprimer l'overlay PNG des vagues et nettoyer
+        try {
+            if (window._wavesOverlay && map && typeof map.removeLayer === 'function') {
+                map.removeLayer(window._wavesOverlay);
+            }
+        } catch (_) {}
+        try { window._wavesOverlay = null; } catch (_) {}
+        // Ancien support via LayerGroup (au cas où)
+        try {
+            if (window._wavesLayer && map && typeof map.removeLayer === 'function' && map.hasLayer(window._wavesLayer)) {
+                map.removeLayer(window._wavesLayer);
+            }
+            if (window._wavesLayer && typeof window._wavesLayer.clearLayers === 'function') {
+                window._wavesLayer.clearLayers();
+            }
+        } catch (_) {}
         btn.title = "Afficher les vagues";
     }
-    // Assurer l'ajout de la couche en cas d'appel rapide
-    try { if (window._wavesLayer && map && !map.hasLayer(window._wavesLayer)) window._wavesLayer.addTo(map); } catch(e) {}
+    // Ne pas ré‑ajouter automatiquement la couche si on vient de la masquer.
 }
 
 
@@ -5546,12 +5576,11 @@ console.log("Grille vagues =", g);
 function renderWavesOverlay(g) {
     const { nx, ny, lo1, la1, dx, dy, swellH } = g;
 
-    // Compute opposite corner from grid spacing
+    // Coins bruts du GRIB
     const lo2_raw = lo1 + dx * (nx - 1);
     const la2_raw = la1 + dy * (ny - 1);
 
-    // Leaflet requires bounds ordered as [[south, west], [north, east]].
-    // Some GRIBs have dy<0 (north->south) or dx<0 (east->west), so normalize here.
+    // Normalisation des bornes pour Leaflet
     const west  = Math.min(lo1, lo2_raw);
     const east  = Math.max(lo1, lo2_raw);
     const south = Math.min(la1, la2_raw);
@@ -5569,8 +5598,8 @@ function renderWavesOverlay(g) {
     const img = ctx.createImageData(W, H);
     const data = img.data;
 
+    // Interpolation bilinéaire
     function sampleHeight(lat, lon) {
-        // Compute normalized positions along original grid axes (may be negative span)
         const tx = (lon - lo1) / (lo2_raw - lo1);
         const ty = (lat - la1) / (la2_raw - la1);
 
@@ -5587,12 +5616,17 @@ function renderWavesOverlay(g) {
         const a = x - i;
         const b = y - j;
 
-        const idx = (ii, jj) => jj * nx + ii;
+        const idx = (ii, jj) => (ny - 1 - jj) * nx + ii;
+
 
         const h11 = swellH[idx(i, j)];
         const h21 = swellH[idx(i + 1, j)];
         const h12 = swellH[idx(i, j + 1)];
         const h22 = swellH[idx(i + 1, j + 1)];
+
+        // Si l'une des valeurs est manquante (9999, NaN, négative), on ne colore pas ce pixel
+        const invalid = (v) => !isFinite(v) || v >= 9990 || v < 0;
+        if (invalid(h11) || invalid(h21) || invalid(h12) || invalid(h22)) return null;
 
         return (
             h11 * (1 - a) * (1 - b) +
@@ -5602,18 +5636,85 @@ function renderWavesOverlay(g) {
         );
     }
 
+    // Palette dynamique en fonction des données disponibles
+    // Pré-calcul d'une échelle max basée sur les valeurs valides de swellH
+    let __scaleMax = 5;
+    (function computeWaveScale() {
+        let min = Infinity, max = -Infinity, n = 0;
+        for (let v of swellH) {
+            if (isFinite(v) && v < 9990 && v >= 0) {
+                if (v < min) min = v;
+                if (v > max) max = v;
+                n++;
+            }
+        }
+        if (n === 0) { __scaleMax = 5; return; }
+        let range = max - min;
+        let sMax = max;
+        if (!isFinite(sMax) || sMax <= 0) sMax = 5;
+        if (range < 0.5) sMax = Math.max(1, min + 0.5);
+        __scaleMax = Math.min(12, Math.max(1, sMax));
+        // console.debug('[WAVES] scale min/max:', min, max, '=> scaleMax =', __scaleMax);
+    })();
+
+    function waveColorRGB(h) {
+        if (!isFinite(h) || h >= 9990 || h < 0) return [0, 0, 0];
+
+        const tLin = Math.min(1, h / __scaleMax);
+        const t = Math.sqrt(tLin); // améliore le contraste pour les petites vagues
+
+        // Dégradé multi-segments façon Windy
+        if (t < 0.25) {        // bleu → turquoise
+            const k = t / 0.25;
+            return [
+                Math.floor(0 + k * 30),
+                Math.floor(50 + k * 80),
+                255
+            ];
+        }
+        else if (t < 0.5) {    // turquoise → vert
+            const k = (t - 0.25) / 0.25;
+            return [
+                0,
+                Math.floor(130 + k * 100),
+                Math.floor(255 - k * 255)
+            ];
+        }
+        else if (t < 0.75) {   // vert → jaune
+            const k = (t - 0.5) / 0.25;
+            return [
+                Math.floor(k * 255),
+                255,
+                0
+            ];
+        }
+        else {                 // jaune → rouge
+            const k = (t - 0.75) / 0.25;
+            return [
+                255,
+                Math.floor(255 - k * 200),
+                0
+            ];
+        }
+    }
+
+
+
+
+    // Rendu pixel par pixel
     let p = 0;
     for (let y = 0; y < H; y++) {
-        const lat = south + (y / H) * (north - south);
+
+        // Latitude correcte : NORD → SUD
+        const lat = north - (y / H) * (north - south);
 
         for (let x = 0; x < W; x++) {
             const lon = west + (x / W) * (east - west);
 
             const h = sampleHeight(lat, lon);
 
-            if (h === null || h <= 0.05 || h > 9990) {
-                data[p] = data[p+1] = data[p+2] = 0;
-                data[p+3] = 0;
+            if (h === null || !isFinite(h) || h >= 9990 || h < 0) {
+                data[p+3] = 0; // transparent
             } else {
                 const col = waveColorRGB(h);
                 data[p]   = col[0];
@@ -5627,99 +5728,38 @@ function renderWavesOverlay(g) {
     }
 
     ctx.putImageData(img, 0, 0);
+    // Lissage léger pour supprimer les pixels pointus
+    ctx.filter = "blur(1.2px)";
+    ctx.drawImage(canvas, 0, 0);
+    ctx.filter = "none";
 
-    // On supprime l'ancien overlay
-    // On supprime l'ancien overlay
+
+    // Inversion verticale
+    const flipped = document.createElement("canvas");
+    flipped.width = W;
+    flipped.height = H;
+    const fctx = flipped.getContext("2d");
+
+    fctx.translate(0, H);
+    fctx.scale(1, -1);
+    fctx.drawImage(canvas, 0, 0);
+
+    const dataUrl = flipped.toDataURL("image/png");
+
+    // Suppression ancien overlay
     if (window._wavesOverlay) {
         map.removeLayer(window._wavesOverlay);
     }
 
-    // Vérification
-    console.log("canvas =", canvas);
-    console.log("type =", typeof canvas);
-    console.log("ARGUMENT PASSE A imageOverlay =", canvas);
-    console.log("typeof =", typeof canvas);
-
-    // Convert canvas to data URL to avoid Leaflet trying to fetch a bogus URL
-    const dataUrl = canvas.toDataURL("image/png");
-
-    // On affiche l'image géoréférencée
+    // Ajout overlay
     window._wavesOverlay = L.imageOverlay(
         dataUrl,
         [[south, west], [north, east]],
         { opacity: 0.8 }
     ).addTo(map);
-
-
-}
-
-function cropCanvasToContent(canvas) {
-    const ctx = canvas.getContext("2d");
-    const w = canvas.width;
-    const h = canvas.height;
-    const img = ctx.getImageData(0, 0, w, h).data;
-
-    let minX = w, minY = h, maxX = 0, maxY = 0;
-    let found = false;
-
-    for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-            const p = (y * w + x) * 4;
-            if (img[p+3] > 0) { // pixel non transparent
-                found = true;
-                if (x < minX) minX = x;
-                if (y < minY) minY = y;
-                if (x > maxX) maxX = x;
-                if (y > maxY) maxY = y;
-            }
-        }
-    }
-
-    if (!found) return canvas; // rien à découper
-
-    const newW = maxX - minX + 1;
-    const newH = maxY - minY + 1;
-
-    const cropped = document.createElement("canvas");
-    cropped.width = newW;
-    cropped.height = newH;
-
-    const ctx2 = cropped.getContext("2d");
-    ctx2.drawImage(canvas, minX, minY, newW, newH, 0, 0, newW, newH);
-
-    return { canvas: cropped, minX, minY, newW, newH };
 }
 
 
-function waveColorRGB(h) {
-    // Exemple de palette simple (à adapter si tu veux XyGrib)
-    if (h < 0.5) return [0, 150, 255];      // bleu clair
-    if (h < 1)   return [0, 120, 255];
-    if (h < 2)   return [0, 90, 255];
-    if (h < 3)   return [0, 60, 255];
-    if (h < 4)   return [0, 30, 255];
-    if (h < 5)   return [0, 0, 255];
-    if (h < 6)   return [255, 200, 0];      // jaune
-    if (h < 8)   return [255, 150, 0];
-    if (h < 10)  return [255, 100, 0];
-    return [255, 0, 0];                     // rouge
-}
-
-function waveColor(h) {
-    if (h < 0.5) return "#00ffff";
-    if (h < 1.0) return "#00bfff";
-    if (h < 1.5) return "#0099ff";
-    if (h < 2.0) return "#0066ff";
-    if (h < 2.5) return "#0033ff";
-    if (h < 3.0) return "#0000ff";
-    if (h < 4.0) return "#0000cc";
-    if (h < 5.0) return "#000099";
-    if (h < 6.0) return "#000066";
-    if (h < 7.0) return "#330066";
-    if (h < 8.0) return "#660066";
-    if (h < 9.0) return "#990066";
-    return "#cc0066";
-}
 
 function roundToHour(date) {
     const d = new Date(date);
