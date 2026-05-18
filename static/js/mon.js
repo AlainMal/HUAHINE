@@ -5758,46 +5758,37 @@ function renderWavesOverlay(g) {
     function waveColorRGB(h) {
         if (!isFinite(h) || h >= 9990 || h < 0) return [0, 0, 0];
 
-        // Échelle dynamique basée sur __scaleMax (déjà calculé dans ton code)
-        const tLin = Math.min(1, h / __scaleMax);
+        const levels = [
+            0.0, 0.1, 0.2, 0.4, 0.7, 1.0, 1.5, 2.0, 2.5, 3,
+            3.5, 4, 4.5, 5, 5.5, 6, 7, 8, 9, 10,
+            12, 14, 16, 18, 20
+        ];
 
-        // IMPORTANT : on enlève le sqrt() qui gonflait les petites vagues
-        const t = tLin;
+        const colors = [
+            "#0000FF", "#0030FF", "#0060FF", "#0090FF", "#00B0FF",
+            "#00D0FF", "#00F0E0", "#00E090", "#00D040", "#00C000",
+            "#40D000", "#80E000", "#B0F000", "#D0F000", "#F0F000",
+            "#F0D000", "#F0B000", "#F09000", "#F06000", "#F03000",
+            "#F00000", "#D00040", "#B00080", "#8000B0", "#6000D0"
+        ];
 
-        // Dégradé multi-segments façon Windy
-        if (t < 0.25) {        // bleu → turquoise
-            const k = t / 0.25;
-            return [
-                Math.floor(0 + k * 30),
-                Math.floor(50 + k * 80),
-                255
-            ];
+        // Trouver la classe
+        let idx = 0;
+        for (let i = 0; i < levels.length; i++) {
+            if (h >= levels[i]) idx = i;
+            else break;
         }
-        else if (t < 0.5) {    // turquoise → vert
-            const k = (t - 0.25) / 0.25;
-            return [
-                0,
-                Math.floor(130 + k * 100),
-                Math.floor(255 - k * 255)
-            ];
-        }
-        else if (t < 0.75) {   // vert → jaune
-            const k = (t - 0.5) / 0.25;
-            return [
-                Math.floor(k * 255),
-                255,
-                0
-            ];
-        }
-        else {                 // jaune → rouge
-            const k = (t - 0.75) / 0.25;
-            return [
-                255,
-                Math.floor(255 - k * 200),
-                0
-            ];
-        }
+
+        const hex = colors[idx];
+
+        // Convertir hex → RGB
+        const r = parseInt(hex.substring(1, 3), 16);
+        const g = parseInt(hex.substring(3, 5), 16);
+        const b = parseInt(hex.substring(5, 7), 16);
+
+        return [r, g, b];
     }
+
 
 
 
