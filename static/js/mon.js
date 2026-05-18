@@ -5529,7 +5529,7 @@ async function loadWaves(desiredOverride) {
         // 1) Heure cible
         // On synchronise avec l’heure du vent
         const desired = desiredOverride
-            || window.WIND_DESIRED_ISO
+            || window.WIND_DESIRED
             || formatLocalISO(new Date());
 
         const target = new Date(desired);
@@ -5758,8 +5758,11 @@ function renderWavesOverlay(g) {
     function waveColorRGB(h) {
         if (!isFinite(h) || h >= 9990 || h < 0) return [0, 0, 0];
 
+        // Échelle dynamique basée sur __scaleMax (déjà calculé dans ton code)
         const tLin = Math.min(1, h / __scaleMax);
-        const t = Math.sqrt(tLin); // améliore le contraste pour les petites vagues
+
+        // IMPORTANT : on enlève le sqrt() qui gonflait les petites vagues
+        const t = tLin;
 
         // Dégradé multi-segments façon Windy
         if (t < 0.25) {        // bleu → turquoise
@@ -5795,7 +5798,6 @@ function renderWavesOverlay(g) {
             ];
         }
     }
-
 
 
 
@@ -5943,24 +5945,11 @@ document.getElementById('wind-apply').addEventListener('click', async function()
         // 2) Mettre à jour l’heure du vent
         window._selectedWindTime = new Date(dt);
 
-        // 3) Recharger vent + isobares + vagues synchronisés
-        try {
-            const vbw = document.getElementById('ventButton');
-            const ventActif = (vbw && vbw.classList && vbw.classList.contains('active')) || (window.AppState && window.AppState.isVentVisible === true);
-            if (ventActif) {
-                loadWind(dt);
-            }
-        } catch(e) { /* ignore */ }
+        // 3) Recharger vent + isobares synchronisés
+        loadWind(dt);
         if (window.AppState?.isIsobarVisible) {
             loadIsobars(dt);
         }
-        try {
-            const vb = document.getElementById('vaguesButton');
-            const vaguesActives = vb && vb.classList && vb.classList.contains('active');
-            if (vaguesActives || window._wavesOverlay) {
-                loadWaves(dt);
-            }
-        } catch(e) { /* ignore */ }
     }
 });
 
@@ -5977,25 +5966,12 @@ document.getElementById('wind-now').addEventListener('click', async function() {
     // 2) Mettre à jour l’heure du vent
     window._selectedWindTime = now;
 
-    // 3) Recharger vent + isobares + vagues synchronisés
-    try {
-        const vbw = document.getElementById('ventButton');
-        const ventActif = (vbw && vbw.classList && vbw.classList.contains('active')) || (window.AppState && window.AppState.isVentVisible === true);
-        if (ventActif) {
-            loadWind(iso);
-        }
-    } catch(e) { /* ignore */ }
+    // 3) Recharger vent + isobares synchronisés
+    loadWind(iso);
 
     if (window.AppState?.isIsobarVisible) {
         loadIsobars(iso);
     }
-    try {
-        const vb = document.getElementById('vaguesButton');
-        const vaguesActives = vb && vb.classList && vb.classList.contains('active');
-        if (vaguesActives || window._wavesOverlay) {
-            loadWaves(iso);
-        }
-    } catch(e) { /* ignore */ }
 
 
 });
