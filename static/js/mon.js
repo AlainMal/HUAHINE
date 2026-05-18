@@ -5751,42 +5751,35 @@ function renderWavesOverlay(g) {
         let sMax = max;
         if (!isFinite(sMax) || sMax <= 0) sMax = 5;
         if (range < 0.5) sMax = Math.max(1, min + 0.5);
-        __scaleMax = Math.min(12, Math.max(1, sMax));
+        __scaleMax = Math.max(5, Math.min(12, sMax));
         // console.debug('[WAVES] scale min/max:', min, max, '=> scaleMax =', __scaleMax);
     })();
 
     function waveColorRGB(h) {
         if (!isFinite(h) || h >= 9990 || h < 0) return [0, 0, 0];
 
-        const levels = [
-            0.0, 0.1, 0.2, 0.4, 0.7, 1.0, 1.5, 2.0, 2.5, 3,
-            3.5, 4, 4.5, 5, 5.5, 6, 7, 8, 9, 10,
-            12, 14, 16, 18, 20
+        // Normalisation avec accentuation des petites vagues
+        const tLin = Math.min(1, Math.max(0, h / __scaleMax));
+        const t = Math.sqrt(tLin);
+
+        // Palette discrète: couleurs fixes par seuils (aucune interpolation ⇒ pas de flou entre couleurs)
+        const bins = [
+            { t: 0.00, c: [0, 0, 180] },     // bleu foncé
+            { t: 0.12, c: [0, 90, 220] },    // bleu
+            { t: 0.25, c: [0, 200, 255] },   // cyan
+            { t: 0.38, c: [0, 220, 160] },   // vert-bleu
+            { t: 0.50, c: [0, 200, 0] },     // vert
+            { t: 0.63, c: [170, 220, 0] },   // vert-jaune
+            { t: 0.75, c: [255, 220, 0] },   // jaune
+            { t: 0.88, c: [255, 140, 0] },   // orange
+            { t: 1.00, c: [255, 0, 0] }      // rouge
         ];
 
-        const colors = [
-            "#0000FF", "#0030FF", "#0060FF", "#0090FF", "#00B0FF",
-            "#00D0FF", "#00F0E0", "#00E090", "#00D040", "#00C000",
-            "#40D000", "#80E000", "#B0F000", "#D0F000", "#F0F000",
-            "#F0D000", "#F0B000", "#F09000", "#F06000", "#F03000",
-            "#F00000", "#D00040", "#B00080", "#8000B0", "#6000D0"
-        ];
-
-        // Trouver la classe
-        let idx = 0;
-        for (let i = 0; i < levels.length; i++) {
-            if (h >= levels[i]) idx = i;
-            else break;
+        let sel = bins[0].c;
+        for (let i = 0; i < bins.length; i++) {
+            if (t >= bins[i].t) sel = bins[i].c; else break;
         }
-
-        const hex = colors[idx];
-
-        // Convertir hex → RGB
-        const r = parseInt(hex.substring(1, 3), 16);
-        const g = parseInt(hex.substring(3, 5), 16);
-        const b = parseInt(hex.substring(5, 7), 16);
-
-        return [r, g, b];
+        return sel;
     }
 
 
@@ -5819,17 +5812,17 @@ function renderWavesOverlay(g) {
     }
 
     ctx.putImageData(img, 0, 0);
-    // Lissage léger pour supprimer les pixels pointus
-    ctx.filter = "blur(1.2px)";
-    ctx.drawImage(canvas, 0, 0);
-    ctx.filter = "none";
-
+    // Pas de flou: rendu net sans filtre
 
     // Inversion verticale
     const flipped = document.createElement("canvas");
     flipped.width = W;
     flipped.height = H;
     const fctx = flipped.getContext("2d");
+    // S'assurer qu'aucun lissage n'est appliqué lors du dessin
+    if (fctx && typeof fctx.imageSmoothingEnabled === 'boolean') {
+        fctx.imageSmoothingEnabled = false;
+    }
 
     fctx.translate(0, H);
     fctx.scale(1, -1);
@@ -5846,7 +5839,7 @@ function renderWavesOverlay(g) {
     window._wavesOverlay = L.imageOverlay(
         dataUrl,
         [[south, west], [north, east]],
-        { opacity: 0.8 }
+        { opacity: 0.8, className: 'waves-overlay' }
     ).addTo(map);
 }
 

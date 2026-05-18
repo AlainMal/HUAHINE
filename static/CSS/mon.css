@@ -1014,3 +1014,14 @@ strong {
     opacity: 1 !important;
     pointer-events: none; /* wind layer should not block map interactions */
 }
+
+
+/* Désactive le lissage/blur sur l'overlay des vagues pour garder des couleurs nettes et distinctes */
+.waves-overlay,
+.leaflet-overlay-pane img.waves-overlay {
+  /* Évite l'interpolation bi-/tri-linéaire lors des zooms */
+  image-rendering: pixelated;         /* Chrome/Edge/Firefox récents */
+  image-rendering: crisp-edges;       /* Fallback */
+  image-rendering: -moz-crisp-edges;  /* Firefox ancien */
+  -ms-interpolation-mode: nearest-neighbor; /* IE/Edge Legacy */
+}
