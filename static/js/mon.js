@@ -39,7 +39,7 @@
  - [S11] Utilitaires, helpers génériques, gestion des messages
  - [S12] Journalisation (logs) et gestion d'erreurs
 
- Convention d'ancrage dans les entêtes de section:
+ Convention d'ancrage dans les entêtes de section :
    // ==============================================
    // [Sx] TITRE DE SECTION
    // ==============================================
@@ -506,7 +506,7 @@ if (!window._windProbeBound) {
         
         // Ne pas afficher le popup Vent si la couche Vent n'est pas active/visible
         try {
-            if (window.AppState && window.AppState.isWindLayerVisible !== true) return;
+            if (window._meteoClickEnabled !== true) return;
         } catch(_e){}
         
         const list = window._lastWindBarbs || [];
@@ -5086,6 +5086,7 @@ window.toggleVent = async function() {
       if (typeof window !== 'undefined') window.AppState = window.AppState || {};
       if (window.AppState) window.AppState.isWindLayerVisible = false;
       try { refreshMapView(); } catch(_e) {}
+      try { if (typeof updateMeteoInteractionAvailability === 'function') updateMeteoInteractionAvailability(); } catch(_e4) {}
       return;
     }
 
@@ -5122,6 +5123,7 @@ window.toggleVent = async function() {
     if (typeof window !== 'undefined') window.AppState = window.AppState || {};
     if (window.AppState) window.AppState.isWindLayerVisible = true;
     try { refreshMapView(); } catch(_e2) {}
+    try { if (typeof updateMeteoInteractionAvailability === 'function') updateMeteoInteractionAvailability(); } catch(_e3) {}
   } catch (e) {
     console.warn('toggleVent failed:', e);
   }
@@ -5443,6 +5445,7 @@ async function loadIsobars(desiredOverride) {
         }
 
         try { refreshMapView(); } catch (_e) {}
+        try { if (typeof updateMeteoInteractionAvailability === 'function') updateMeteoInteractionAvailability(); } catch(_e2) {}
 
     } catch (e) {
         console.warn('toggleIsobare failed:', e);
@@ -5491,6 +5494,7 @@ function toggleVagues() {
         } catch (_) {}
         btn.title = "Afficher les vagues";
     }
+    try { if (typeof updateMeteoInteractionAvailability === 'function') updateMeteoInteractionAvailability(); } catch(_e) {}
     // Ne pas ré‑ajouter automatiquement la couche si on vient de la masquer.
 }
 
@@ -5525,7 +5529,7 @@ async function loadWaves(desiredOverride) {
         // 1) Heure cible
         // On synchronise avec l’heure du vent
         const desired = desiredOverride
-            || window.WIND_DESIRED
+            || window.WIND_DESIRED_ISO
             || formatLocalISO(new Date());
 
         const target = new Date(desired);
@@ -5893,6 +5897,25 @@ timeCtl.innerHTML = `
 if (timeCtl) timeCtl.style.display = 'none';
 document.body.appendChild(timeCtl);
 
+// Met à jour la disponibilité du clic sur la carte et l'affichage du panneau heure
+function updateMeteoInteractionAvailability() {
+    try {
+        const ids = ['ventButton','isobareButton','vaguesButton'];
+        const anyActive = ids.some(id => {
+            const el = document.getElementById(id);
+            return !!(el && el.classList && el.classList.contains('active'));
+        });
+        // Active/désactive les clics météo sur la carte
+        window._meteoClickEnabled = anyActive === true;
+        // Affiche/masque la fenêtre de sélection de l'heure (haut droite)
+        const tc = document.getElementById('wind-time-ctrl');
+        if (tc) tc.style.display = anyActive ? '' : 'none';
+    } catch(e) { /* ignore */ }
+}
+
+// État initial: synchroniser au chargement
+updateMeteoInteractionAvailability();
+
 // Utilitaire: formate une date en heure locale pour un <input type="datetime-local">
 function formatLocalDateTime(d){
   try{
@@ -5920,11 +5943,24 @@ document.getElementById('wind-apply').addEventListener('click', async function()
         // 2) Mettre à jour l’heure du vent
         window._selectedWindTime = new Date(dt);
 
-        // 3) Recharger vent + isobares synchronisés
-        loadWind(dt);
+        // 3) Recharger vent + isobares + vagues synchronisés
+        try {
+            const vbw = document.getElementById('ventButton');
+            const ventActif = (vbw && vbw.classList && vbw.classList.contains('active')) || (window.AppState && window.AppState.isVentVisible === true);
+            if (ventActif) {
+                loadWind(dt);
+            }
+        } catch(e) { /* ignore */ }
         if (window.AppState?.isIsobarVisible) {
             loadIsobars(dt);
         }
+        try {
+            const vb = document.getElementById('vaguesButton');
+            const vaguesActives = vb && vb.classList && vb.classList.contains('active');
+            if (vaguesActives || window._wavesOverlay) {
+                loadWaves(dt);
+            }
+        } catch(e) { /* ignore */ }
     }
 });
 
@@ -5941,12 +5977,25 @@ document.getElementById('wind-now').addEventListener('click', async function() {
     // 2) Mettre à jour l’heure du vent
     window._selectedWindTime = now;
 
-    // 3) Recharger vent + isobares synchronisés
-    loadWind(iso);
+    // 3) Recharger vent + isobares + vagues synchronisés
+    try {
+        const vbw = document.getElementById('ventButton');
+        const ventActif = (vbw && vbw.classList && vbw.classList.contains('active')) || (window.AppState && window.AppState.isVentVisible === true);
+        if (ventActif) {
+            loadWind(iso);
+        }
+    } catch(e) { /* ignore */ }
 
     if (window.AppState?.isIsobarVisible) {
         loadIsobars(iso);
     }
+    try {
+        const vb = document.getElementById('vaguesButton');
+        const vaguesActives = vb && vb.classList && vb.classList.contains('active');
+        if (vaguesActives || window._wavesOverlay) {
+            loadWaves(iso);
+        }
+    } catch(e) { /* ignore */ }
 
 
 });
