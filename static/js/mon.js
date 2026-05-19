@@ -503,7 +503,8 @@ function refreshMapView() {
 // - Affiche un popup synthétique cohérent avec les couches visibles.
 if (!window._windProbeBound) {
     map.on('click', (e) => {
-        
+        console.log("DEBUG _lastWindBarbs =", window._lastWindBarbs);
+
         // Ne pas afficher le popup Vent si la couche Vent n'est pas active/visible
         try {
             if (window._meteoClickEnabled !== true) return;
@@ -933,6 +934,7 @@ async function loadWind(desiredOverride) {
     // 7) Calculer les barbules
     const barbs = gridToWindBarbs(wind);
     window._lastWindBarbs = barbs;
+    window._meteoClickEnabled = true;
 
     // 8) Dessiner les barbules
     if (typeof drawWindBarbs === "function") {
@@ -5843,8 +5845,6 @@ function renderWavesOverlay(g) {
     ).addTo(map);
 }
 
-
-
 function roundToHour(date) {
     const d = new Date(date);
     d.setMinutes(0, 0, 0);
@@ -6005,3 +6005,68 @@ document.getElementById('wind-now').addEventListener('click', async function() {
       setWindTimeAndApply(d);
     });
   };
+
+
+map.on("mousemove", function (e) {
+    console.log("LIVE =", window._lastWindBarbs?.length);
+
+    // --- Coordonnées ---
+    let lat = e.latlng.lat;
+    let lon = e.latlng.lng;
+
+    const ns = lat >= 0 ? "N" : "S";
+    const ew = lon >= 0 ? "E" : "W";
+
+    lat = Math.abs(lat).toFixed(5);
+    lon = Math.abs(lon).toFixed(5);
+
+    document.getElementById("longitude").textContent = "Long: " + lon + "° " + ew;
+    document.getElementById("latitude").textContent = "Lat: " + lat + "° " + ns;
+
+    // --- Données météo en temps réel ---
+    const list = (window._lastWindBarbs && Array.isArray(window._lastWindBarbs))
+        ? window._lastWindBarbs
+        : [];
+
+    if (!list.length) return;
+
+    // Trouver le point le plus proche comme dans ta popup
+    let best = null, bestD2 = Infinity;
+    const { lat: mlat, lng: mlng } = e.latlng;
+
+    for (const p of list) {
+        const dlat = p.lat - mlat;
+        const dlng = (p.lng ?? p.lon) - mlng;
+        const d2 = dlat*dlat + dlng*dlng;
+        if (d2 < bestD2) { bestD2 = d2; best = p; }
+    }
+
+    if (!best) return;
+
+    // --- Mise à jour des champs ---
+    if (document.getElementById("vent"))
+        document.getElementById("vent").textContent = "Vent moyen: " +
+            (best.avgKt ?? best.speed ?? 0).toFixed(1) + " kt";
+
+    if (document.getElementById("rafale"))
+        document.getElementById("rafale").textContent = "Rafale: " +
+            (best.avgKt ?? best.speed ?? 0).toFixed(1) + " kt";
+            (best.gustKt ?? 0).toFixed(1) + " kt";
+
+    if (document.getElementById("direction"))
+        document.getElementById("direction").textContent = "Dir: " +
+            best.dir.toFixed(0) + "°";
+
+    // Si tu as houle / vagues dans ton JSON :
+    if (document.getElementById("houle") && best.swellH)
+        document.getElementById("houle").textContent = "Houle: " +
+            (best.swellH ?? 0).toFixed(1) + " m";
+            best.swellH.toFixed(1) + " m";
+
+    if (document.getElementById("vagues") && best.waveH)
+        document.getElementById("vagues").textContent = "Vagues: " +
+            (best.waveH ?? 0).toFixed(1) + " m";
+            best.waveH.toFixed(1) + " m";
+});
+
+
