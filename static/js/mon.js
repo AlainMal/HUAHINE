@@ -5531,7 +5531,7 @@ async function loadWaves(desiredOverride) {
         // 1) Heure cible
         // On synchronise avec l’heure du vent
         const desired = desiredOverride
-            || window.WIND_DESIRED
+            || window.WIND_DESIRED_ISO
             || formatLocalISO(new Date());
 
         const target = new Date(desired);
@@ -5929,11 +5929,17 @@ document.getElementById('wind-apply').addEventListener('click', async function()
         // 2) Mettre à jour l’heure du vent
         window._selectedWindTime = new Date(dt);
 
-        // 3) Recharger vent + isobares synchronisés
+        // 3) Recharger vent + isobares + vagues synchronisés
         loadWind(dt);
         if (window.AppState?.isIsobarVisible) {
             loadIsobars(dt);
         }
+        try {
+            const vb = document.getElementById('vaguesButton');
+            if (vb && vb.classList && vb.classList.contains('active')) {
+                loadWaves(dt);
+            }
+        } catch(e) { /* ignore */ }
     }
 });
 
@@ -5950,13 +5956,18 @@ document.getElementById('wind-now').addEventListener('click', async function() {
     // 2) Mettre à jour l’heure du vent
     window._selectedWindTime = now;
 
-    // 3) Recharger vent + isobares synchronisés
+    // 3) Recharger vent + isobares + vagues synchronisés
     loadWind(iso);
 
     if (window.AppState?.isIsobarVisible) {
         loadIsobars(iso);
     }
-
+    try {
+        const vb = document.getElementById('vaguesButton');
+        if (vb && vb.classList && vb.classList.contains('active')) {
+            loadWaves(iso);
+        }
+    } catch(e) { /* ignore */ }
 
 });
 
