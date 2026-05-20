@@ -6017,56 +6017,86 @@ map.on("mousemove", function (e) {
     const ns = lat >= 0 ? "N" : "S";
     const ew = lon >= 0 ? "E" : "W";
 
-    lat = Math.abs(lat).toFixed(5);
-    lon = Math.abs(lon).toFixed(5);
+    const latAbs = Math.abs(lat).toFixed(5);
+    const lonAbs = Math.abs(lon).toFixed(5);
 
-    document.getElementById("longitude").textContent = "Long: " + lon + "° " + ew;
-    document.getElementById("latitude").textContent = "Lat: " + lat + "° " + ns;
+    const elLon = document.getElementById("longitude");
+    const elLat = document.getElementById("latitude");
+    if (elLon) elLon.textContent = "Long: " + lonAbs + "° " + ew;
+    if (elLat) elLat.textContent = "Lat: " + latAbs + "° " + ns;
 
-    // --- Données météo en temps réel ---
+    // --- Vent en temps réel ---
     const list = (window._lastWindBarbs && Array.isArray(window._lastWindBarbs))
         ? window._lastWindBarbs
         : [];
 
-    if (!list.length) return;
-
-    // Trouver le point le plus proche comme dans ta popup
-    let best = null, bestD2 = Infinity;
-    const { lat: mlat, lng: mlng } = e.latlng;
-
-    for (const p of list) {
-        const dlat = p.lat - mlat;
-        const dlng = (p.lng ?? p.lon) - mlng;
-        const d2 = dlat*dlat + dlng*dlng;
-        if (d2 < bestD2) { bestD2 = d2; best = p; }
+    let best = null;
+    if (list.length) {
+        // Trouver le barb le plus proche
+        let bestD2 = Infinity;
+        const { lat: mlat, lng: mlng } = e.latlng;
+        for (const p of list) {
+            const dlat = p.lat - mlat;
+            const dlng = (p.lng ?? p.lon) - mlng;
+            const d2 = dlat*dlat + dlng*dlng;
+            if (d2 < bestD2) { bestD2 = d2; best = p; }
+        }
     }
 
-    if (!best) return;
+    // --- Mise à jour des champs Vent ---
+    if (best) {
+        const elVent = document.getElementById("vent");
+        if (elVent)
+            elVent.textContent = "Vent moyen: " + (best.avgKt ?? best.speed ?? 0).toFixed(1) + " kt";
 
-    // --- Mise à jour des champs ---
-    if (document.getElementById("vent"))
-        document.getElementById("vent").textContent = "Vent moyen: " +
-            (best.avgKt ?? best.speed ?? 0).toFixed(1) + " kt";
+        const elRaf = document.getElementById("rafale");
+        if (elRaf)
+            elRaf.textContent = "Rafale: " + (best.gustKt ?? best.gust ?? best.avgKt ?? best.speed ?? 0).toFixed(1) + " kt";
 
-    if (document.getElementById("rafale"))
-        document.getElementById("rafale").textContent = "Rafale: " +
-            (best.avgKt ?? best.speed ?? 0).toFixed(1) + " kt";
-            (best.gustKt ?? 0).toFixed(1) + " kt";
+        const elDir = document.getElementById("direction");
+        if (elDir && isFinite(best.dir))
+            elDir.textContent = "Dir: " + best.dir.toFixed(0) + "°";
+    }
 
-    if (document.getElementById("direction"))
-        document.getElementById("direction").textContent = "Dir: " +
-            best.dir.toFixed(0) + "°";
+    // --- Houle et Vagues (échantillonnage de la grille) ---
+    const G = window._lastWavesGrids;
 
-    // Si tu as houle / vagues dans ton JSON :
-    if (document.getElementById("houle") && best.swellH)
-        document.getElementById("houle").textContent = "Houle: " +
-            (best.swellH ?? 0).toFixed(1) + " m";
-            best.swellH.toFixed(1) + " m";
+    function sampleGridValue(grid, plat, plon) {
+        try {
+            if (!G || !grid) return null;
+            const { nx, ny, lo1, la1, dx, dy } = G;
+            const lo2 = lo1 + dx * (nx - 1);
+            const la2 = la1 + dy * (ny - 1);
+            const tx = (plon - lo1) / (lo2 - lo1);
+            const ty = (plat - la1) / (la2 - la1);
+            if (!isFinite(tx) || !isFinite(ty) || tx < 0 || tx > 1 || ty < 0 || ty > 1) return null;
+            const x = tx * (nx - 1);
+            const y = ty * (ny - 1);
+            const i = Math.floor(x);
+            const j = Math.floor(y);
+            if (i < 0 || j < 0 || i >= nx - 1 || j >= ny - 1) return null;
+            const a = x - i, b = y - j;
+            const idx = (ii, jj) => (ny - 1 - jj) * nx + ii;
+            const v11 = grid[idx(i, j)];
+            const v21 = grid[idx(i + 1, j)];
+            const v12 = grid[idx(i, j + 1)];
+            const v22 = grid[idx(i + 1, j + 1)];
+            const invalid = (v) => !isFinite(v) || v >= 9990 || v < 0;
+            if (invalid(v11) || invalid(v21) || invalid(v12) || invalid(v22)) return null;
+            return v11 * (1 - a) * (1 - b) + v21 * a * (1 - b) + v12 * (1 - a) * b + v22 * a * b;
+        } catch (_) { return null; }
+    }
 
-    if (document.getElementById("vagues") && best.waveH)
-        document.getElementById("vagues").textContent = "Vagues: " +
-            (best.waveH ?? 0).toFixed(1) + " m";
-            best.waveH.toFixed(1) + " m";
+    const swellH = sampleGridValue(G?.swellH, e.latlng.lat, e.latlng.lng);
+    const windSeaH = sampleGridValue(G?.windSeaH, e.latlng.lat, e.latlng.lng);
+
+    const elHoule = document.getElementById("houle");
+    if (elHoule)
+        elHoule.textContent = "Houle: " + (swellH == null ? "—" : swellH.toFixed(1) + " m");
+
+    const elVagues = document.getElementById("vagues");
+    if (elVagues)
+        elVagues.textContent = "Vagues du vent: " + (windSeaH == null ? "—" : windSeaH.toFixed(1) + " m");
 });
 
 
