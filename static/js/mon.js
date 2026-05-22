@@ -13,7 +13,7 @@
  - Les grilles GRIB (vent/vagues) peuvent contenir des valeurs manquantes (9999)
    ou inadéquates (NaN, négatives). Toute interpolation/rendu doit filtrer ces
    valeurs et produire de la transparence pour éviter des liserés proches des côtes.
- - L'orientation (indexation) de la grille est uniformisée: l'indice ligne j croît
+ - L'orientation (indexation) de la grille est uniformisée : l'indice ligne j croît
    du Sud vers le Nord, et la conversion vers l'index 1D utilise: idx = (ny-1-j)*nx + i.
  - Le rendu des vagues se fait via un canvas converti en PNG et ajouté dans un
    L.imageOverlay (window._wavesOverlay). L'ancien LayerGroup _wavesLayer est gardé
@@ -497,7 +497,7 @@ function refreshMapView() {
 }
 
 // Gestion du clic sur la carte pour afficher un popup "Vent" enrichi avec les vagues
-// - Récupère le barbule de vent le plus proche autour du point cliqué
+// - Récupère la barbule de vent le plus proche autour du point cliqué
 // - Échantillonne la hauteur de vagues (houle et vagues du vent) par interpolation bilinéaire
 //   en utilisant la même orientation et les mêmes garde‑fous que le rendu couleur.
 // - Affiche un popup synthétique cohérent avec les couches visibles.
@@ -974,7 +974,7 @@ async function loadWind(desiredOverride) {
 
 
 
-// Chargement initial: par défaut, NE PAS afficher la météo tant que l'utilisateur n'a pas cliqué sur le bouton.
+// Chargement initial : par défaut, NE PAS afficher la météo tant que l'utilisateur n'a pas cliqué sur le bouton.
 // Pour réactiver l'affichage automatique au démarrage, définir window.SHOW_WIND_ON_START = true avant l'init.
 if (typeof window !== 'undefined' && window.SHOW_WIND_ON_START === true) {
   try { loadWind(); } catch(e) { console.warn('[WIND] load au démarrage a échoué:', e); }
@@ -4181,7 +4181,9 @@ const loadHistoryFromFile = async (filename) => {
     }
 }
 
-// ========================================== FONCTIONS DE GESTION DES ROUTES =====================================
+// ==========================================
+// FONCTIONS DE GESTION DES ROUTES
+// =====================================
 // Afficher le modal avec la liste des routes
 async function loadRouteList() {
     try {
@@ -5814,7 +5816,7 @@ function renderWavesOverlay(g) {
     }
 
     ctx.putImageData(img, 0, 0);
-    // Pas de flou: rendu net sans filtre
+    // Pas de flou : rendu net sans filtre
 
     // Inversion verticale
     const flipped = document.createElement("canvas");

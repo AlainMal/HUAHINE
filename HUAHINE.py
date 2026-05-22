@@ -219,7 +219,12 @@ class MainWindow(QMainWindow):
         self.table_can.selectionModel().selectionChanged.connect(self.on_selection_changed)
 
         # Appel des méthodes des objets widgets.
-        self.check_file.stateChanged.connect(self.on_check_file_changed)
+        try:
+            self.check_file.toggled.disconnect()
+        except:
+            pass
+        self.check_file.toggled.connect(self.on_check_file_toggled)
+
         self.table_can.clicked.connect(self.on_click_table)                 # Gestion du clic dans la table
         self.line_table.editingFinished.connect(self.on_change_buffer_size) # Modification de la taille du buffer
 
@@ -463,14 +468,27 @@ class MainWindow(QMainWindow):
         # Ne pas appeler self.close() ici; la fermeture est gérée par loop.stop() puis Qt.
 
     # Méthode sur la case à cocher. ------------------------------------------------------------------------------------
-    def on_check_file_changed(self, state):
-        if state == Qt.Checked:
-            if not self._file_path:
-                QMessageBox.information(self, "ENREGISTREMENT",
-                                        "Veuillez ouvrir un fichier avant de pouvoir l'enregistrer.")
-                # Remet la case à False.
-                self.check_file.setChecked(False)
-        return self.check_file
+    def on_check_file_toggled(self, checked):
+        # Empêche les doubles appels
+        if getattr(self, "_lock_check_file", False):
+            return
+
+        if checked and not self._file_path:
+            self._lock_check_file = True  # Active le verrou
+
+            QMessageBox.information(
+                self,
+                "ENREGISTREMENT",
+                "Veuillez ouvrir un fichier avant de pouvoir l'enregistrer."
+            )
+
+            self.check_file.blockSignals(True)
+            self.check_file.setChecked(False)
+            self.check_file.blockSignals(False)
+
+            self._lock_check_file = False  # Libère le verrou
+
+        # return self.check_file
 
     # Méthode d'ouverture de la lecture du bloc note. ------------------------------------------------------------------
     def on_click_voir(self):

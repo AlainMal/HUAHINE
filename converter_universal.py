@@ -28,6 +28,13 @@ def to_int(x):
     except:
         return 0
 
+def safe_get(gid, key, default=None):
+    try:
+        return codes_get(gid, key)
+    except Exception:
+        return default
+
+
 
 def main():
 
@@ -44,16 +51,23 @@ def main():
             if gid is None:
                 break
 
-            shortName = codes_get(gid, "shortName")
+            shortName = safe_get(gid, "shortName", None)
 
-            # Variables utiles (ajout de PRMSL)
+            # print("Position fichier :", f.tell())
+
+            # Si shortName est introuvable → on ignore ce message
+            if not shortName:
+                codes_release(gid)
+                continue
+
+            # Filtre des variables utiles
             if shortName not in (
                     "10u", "10v", "gust", "fg10", "prmsl",
                     "swh", "mwd", "mwp",
                     "shww", "mdww", "mpww"
-                    ):
-                        codes_release(gid)
-                        continue
+            ):
+                codes_release(gid)
+                continue
 
             # --- Temps ---
             dataDate = to_int(codes_get(gid, "dataDate"))
@@ -64,8 +78,8 @@ def main():
             refTime = ref_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
             # --- Métadonnées GRIB ---
-            paramCat = to_int(codes_get(gid, "parameterCategory"))
-            paramNum = to_int(codes_get(gid, "parameterNumber"))
+            paramCat = to_int(safe_get(gid, "parameterCategory", -1))
+            paramNum = to_int(safe_get(gid, "parameterNumber", -1))
             level    = to_int(codes_get(gid, "level"))
             typeOfLevel = codes_get(gid, "typeOfLevel")
 
