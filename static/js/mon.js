@@ -704,6 +704,7 @@ function gridToWindBarbs(wind) {
             // de la grille sans réassigner les valeurs U/V à d'autres cellules.
             const idx = jData * h.nx + iData;
 
+
             const uu = u[idx];
             const vv = v[idx];
 
@@ -3006,7 +3007,7 @@ handleKeyPress: function(e) {
 
         if (this.points.length === 0) {
             console.log("Aucun point à supprimer");
-            showMessage('Aucun point à supprimer', 'info', true);
+            showMessage('Aucun point à supprimer', 'info', false);
             return;
         }
 

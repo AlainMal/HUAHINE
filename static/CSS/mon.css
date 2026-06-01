@@ -461,7 +461,7 @@ strong {
 .vent-container {
     position: fixed;
     left: 10px;
-    top: 55%;
+    top: 56%;
     transform: translateY(-50%);
     z-index: 1000;
     display: flex;
