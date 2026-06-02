@@ -5683,11 +5683,41 @@ function renderWavesOverlay(g) {
     const lo2_raw = lo1 + dx * (nx - 1);
     const la2_raw = la1 + dy * (ny - 1);
 
-    // Normalisation des bornes pour Leaflet
-    const west  = Math.min(lo1, lo2_raw);
-    const east  = Math.max(lo1, lo2_raw);
+    // Normalisation des longitudes vers [-180, 180) et rapprochement pour éviter de couvrir toute la planète
+    const norm180 = (lon) => ((lon + 180) % 360 + 360) % 360 - 180;
+    const nearTo = (lon, ref) => {
+        let L = norm180(lon);
+        // Rapprocher L le plus près possible de la référence en jouant sur +/-360
+        while (L - ref > 180) L -= 360;
+        while (ref - L > 180) L += 360;
+        return L;
+    };
+
+    // Amener lo1/lo2 dans le même référentiel compact
+    const lo1n = norm180(lo1);
+    let lo2n = nearTo(lo2_raw, lo1n);
+
+    // Déterminer bornes O/E/N/S correctement ordonnées
+    let west = Math.min(lo1n, lo2n);
+    let east = Math.max(lo1n, lo2n);
     const south = Math.min(la1, la2_raw);
     const north = Math.max(la1, la2_raw);
+
+    // Si l'étendue dépasse quasiment la planète entière, on tente l'autre sens (traversée anti-méridien)
+    if ((east - west) > 300) {
+        // Essayer de rapprocher lo1 autour de lo2
+        const altLo1 = nearTo(lo1n, norm180(lo2_raw));
+        const altLo2 = norm180(lo2_raw);
+        const aWest = Math.min(altLo1, altLo2);
+        const aEast = Math.max(altLo1, altLo2);
+        if ((aEast - aWest) < (east - west)) {
+            west = aWest; east = aEast;
+        }
+        // Sécurité: ne jamais dépasser 350° pour éviter de couvrir le monde entier
+        if ((east - west) > 350) {
+            east = west + 350;
+        }
+    }
 
     const W = 1024;
     const H = 1024;
@@ -5703,7 +5733,8 @@ function renderWavesOverlay(g) {
 
     // Interpolation bilinéaire
     function sampleHeight(lat, lon) {
-        const tx = (lon - lo1) / (lo2_raw - lo1);
+        // Utiliser le repère normalisé pour les longitudes afin d'éviter l'étendue 0..360°
+        const tx = (lon - lo1n) / (lo2n - lo1n);
         const ty = (lat - la1) / (la2_raw - la1);
 
         if (tx < 0 || tx > 1 || ty < 0 || ty > 1) return null;
