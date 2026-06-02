@@ -624,367 +624,6 @@ if (!window._windProbeBound) {
     window._windProbeBound = true;
 }
 
-// ==============================================
-// METEO ..........................
-// ==============================================
-// Pane pour les isobares et labels (au-dessus des barbules)
-map.createPane('isobarsPane');
-map.getPane('isobarsPane').style.zIndex = 800;
-map.getPane('isobarsPane').style.pointerEvents = 'none';
-map.createPane('wavesPane');
-map.getPane('wavesPane').style.zIndex = 450;
-map.getPane('wavesPane').style.pointerEvents = 'none';
-
-
-function gridToWindBarbs(wind) {
-    const u = wind[0].data;
-    const v = wind[1].data;
-    const h = wind[0].header;
-
-    const points = [];
-
-    // Échantillonnage pour alléger l'affichage si la grille est dense
-    const stepX = Math.max(1, Math.floor(h.nx / 60)); // ~60 colonnes max
-    const stepY = Math.max(1, Math.floor(h.ny / 40)); // ~40 lignes max
-
-    // Détecter l'orientation géographique entre les bornes
-    const lonIncreasing = (h.lo2 - h.lo1) >= 0 ? true : false;
-    const latIncreasing = (h.la2 - h.la1) >= 0 ? true : false;
-
-    // Log d'orientation pour diagnostic une seule fois par appel
-    try {
-        console.log('GRIB extent:', { lo1: h.lo1, lo2: h.lo2, la1: h.la1, la2: h.la2, nx: h.nx, ny: h.ny, lonIncreasing, latIncreasing });
-    } catch (e) {}
-
-    // Surcharges utilisateur pour inversions manuelles sans redéploiement
-    // Si non définies, activer par défaut l'inversion gauche/droite et haut/bas pour corriger l'effet observé
-    if (typeof window !== 'undefined') {
-        if (typeof window.WIND_BARBS_FLIP_LR === 'undefined') {
-            window.WIND_BARBS_FLIP_LR = true;
-        }
-        if (typeof window.WIND_BARBS_FLIP_TB === 'undefined') {
-            window.WIND_BARBS_FLIP_TB = true;
-        }
-    }
-    const forceFlipLR = (typeof window !== 'undefined' && window.WIND_BARBS_FLIP_LR === true);
-    const forceFlipTB = (typeof window !== 'undefined' && window.WIND_BARBS_FLIP_TB === true);
-    try { console.log('Wind barbs flips:', { forceFlipLR, forceFlipTB }); } catch(e) {}
-
-    for (let j = 0; j < h.ny; j++) {
-        for (let i = 0; i < h.nx; i++) {
-            // Interpolation robuste entre les bornes, indépendante du signe de dx/dy et du mode de scan
-            let tX = (i + 0.5) / h.nx; // centre de cellule en X
-            let tY = (j + 0.5) / h.ny; // centre de cellule en Y
-
-            // Appliquer éventuellement une inversion manuelle des axes pour corriger l'effet miroir (bas-gauche ↔ haut-droite)
-            if (forceFlipLR) tX = 1 - tX; // inverse gauche/droite
-            if (forceFlipTB) tY = 1 - tY; // inverse haut/bas
-
-            // Interpole la latitude de la1 -> la2
-            let lat = h.la1 + tY * (h.la2 - h.la1);
-
-            // Interpole la longitude en tenant compte d'un éventuel franchissement de l'antiméridien
-            let dlon = h.lo2 - h.lo1;
-            if (Math.abs(dlon) > 180) {
-                dlon = dlon > 0 ? dlon - 360 : dlon + 360;
-            }
-            let rawLng = h.lo1 + tX * dlon;
-            // Normaliser la longitude en [-180, 180]
-            rawLng = ((rawLng + 540) % 360) - 180;
-
-            // Décalage manuel optionnel pour corriger un offset visuel connu
-            const manualLatOffset = (typeof window !== 'undefined' && typeof window.WIND_BARBS_LAT_OFFSET_DEG === 'number') ? window.WIND_BARBS_LAT_OFFSET_DEG : 0;
-            lat += manualLatOffset;
-
-            // Calculer l'index des données en fonction de l'orientation réelle
-            let iData = (lonIncreasing ? i : (h.nx - 1 - i));
-            let jData = (latIncreasing ? j : (h.ny - 1 - j));
-            // Important: on n'applique PAS les flips manuels sur l'index des données,
-            // uniquement sur les coordonnées (tX/tY). Ainsi, on effectue une rotation visuelle
-            // de la grille sans réassigner les valeurs U/V à d'autres cellules.
-            const idx = jData * h.nx + iData;
-
-
-            const uu = u[idx];
-            const vv = v[idx];
-
-            // Filtrer les valeurs manquantes/NaN
-            if (!isFinite(uu) || !isFinite(vv)) {
-                continue;
-            }
-
-            // Vitesse en m/s -> convertir en noeuds pour l'affichage des barbules
-            // On calcule systématiquement la vitesse moyenne (à partir de U/V) et, si présent,
-            // la vitesse de rafale à partir du champ des rafales. La vitesse utilisée pour
-            // dessiner la barbule dépend du mode (vent moyen vs rafales), mais on stocke les deux
-            // dans chaque point pour pouvoir les afficher dans le popup.
-            const avg_ms = Math.hypot(uu, vv);
-            const gust_ms_val = (typeof window !== 'undefined' && Array.isArray(window._gustArray)) ? window._gustArray[idx] : undefined;
-
-            let speed_ms = avg_ms;
-            const useGust = (typeof window !== 'undefined' && window.WIND_USE_GUST === true && Array.isArray(window._gustArray));
-            if (useGust && isFinite(gust_ms_val)) {
-                speed_ms = gust_ms_val; // champs de rafales exprimé en m/s
-            }
-            if (!isFinite(speed_ms)) {
-                continue;
-            }
-            const speed = speed_ms * 1.943844; // m/s -> kt (pour le rendu de la barbule)
-            const avgKt = isFinite(avg_ms) ? (avg_ms * 1.943844) : undefined;
-            const gustKt = isFinite(gust_ms_val) ? (gust_ms_val * 1.943844) : undefined;
-
-            // Convention météorologique (direction d'où vient le vent)
-            const dir = (Math.atan2(-uu, -vv) * 180 / Math.PI + 360) % 360;
-
-            // Normaliser la longitude en [-180, 180]
-            const lng = ((rawLng + 540) % 360) - 180;
-
-            // Générer une barbule SVG simple
-            const barbSize = 32;
-            const svg = `
-            <svg width="${barbSize}" height="${barbSize}" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"
-                 style="transform: rotate(${dir}deg);">
-              <line x1="32" y1="32" x2="32" y2="5" stroke="black" stroke-width="3"/>
-            </svg>`;
-
-            // Appliquer l'échantillonnage
-            if ((i % stepX === 0) && (j % stepY === 0)) {
-                points.push({
-                lat: lat,
-                lon: lng,
-                lng: lng,
-                speed: speed,
-                dir: dir,
-                _idx: idx,
-                avgKt: avgKt,
-                gustKt: gustKt,
-                icon: {
-                    svg: svg,
-                    size: barbSize
-                }
-            });
-
-            }
-        }
-    }
-
-    return points;
-}
-
-// Fonction utilitaire optionnelle pour dessiner explicitement les barbules à partir d'une liste de points
-// Usage: window.drawWindBarbs(window._lastWindBarbs)
-function drawWindBarbs(points) {
-  try {
-    if (!Array.isArray(points) && typeof window !== 'undefined' && Array.isArray(window._lastWindBarbs)) {
-      points = window._lastWindBarbs;
-    }
-  } catch(_) {}
-  if (!points || !Array.isArray(points)) return;
-  if (typeof L === 'undefined' || typeof map === 'undefined') return;
-
-  // S'assurer que le pane existe
-  try {
-    if (!map.getPane('windbarbs')) {
-      map.createPane('windbarbs');
-      const p = map.getPane('windbarbs');
-      if (p && p.style) {
-        p.style.zIndex = 650;
-        p.style.pointerEvents = 'none';
-      }
-    }
-  } catch(_) {}
-
-  // Créer ou réutiliser la couche
-  if (typeof window !== 'undefined' && !window._windBarbLayer) {
-    try { window._windBarbLayer = L.layerGroup([], { pane: 'windbarbs' }).addTo(map); } catch(_) {}
-  }
-  const layer = (typeof window !== 'undefined') ? window._windBarbLayer : null;
-  if (!layer) return;
-  try { if (typeof layer.clearLayers === 'function') layer.clearLayers(); } catch(_) {}
-
-  // Options et rotation similaires à loadWind
-  const opts = { size: 44, color: '#000', fillColor: '#000', strokeColor: '#000', opacity: 0.95, pane: 'windbarbs', interactive: false };
-  const _rot180 = (typeof window !== 'undefined' && window.WIND_BARBS_ROTATE_PLUS_180 === true);
-  const _rotOffset = (typeof window !== 'undefined' && Number.isFinite(window.WIND_BARBS_ROTATE_OFFSET)) ? (+window.WIND_BARBS_ROTATE_OFFSET) : 0;
-
-  for (const p of points) {
-    try {
-      const ll = [p.lat, (p.lon ?? p.lng)];
-      const dirAdj = (((_rot180 ? (p.dir + 180) : p.dir) + _rotOffset) % 360 + 360) % 360;
-
-      // Tenter d'utiliser le plugin si disponible
-      if (typeof L.windBarb === 'function') {
-        const m = L.windBarb(ll, p.speed, dirAdj, opts);
-        layer.addLayer(m);
-        continue;
-      } else if (typeof L.WindBarb === 'function') {
-        const m = new L.WindBarb(ll, p.speed, dirAdj, opts);
-        layer.addLayer(m);
-        continue;
-      }
-
-      // Sinon: créer des marqueurs simples à partir du SVG fourni dans points[i].icon.svg
-      const size = (p.icon && Number.isFinite(p.icon.size)) ? p.icon.size : 44;
-      let html = (p.icon && typeof p.icon.svg === 'string') ? p.icon.svg : '';
-      if (!html || html.indexOf('<svg') === -1) {
-        // Fallback très simple si aucun SVG pré-calculé n'est fourni
-        const dir = Number.isFinite(p.dir) ? p.dir : 0;
-        html = `\n<svg width="${size}" height="${size}" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">\n  <g transform="rotate(${dir},32,32)">\n    <line x1="32" y1="54" x2="32" y2="10" stroke="#000" stroke-width="2" stroke-linecap="round"/>\n  </g>\n</svg>`;
-      }
-      const icon = L.divIcon({ className: 'windbarb', html, iconSize: [size, size] });
-      const m = L.marker(ll, { icon, pane: 'windbarbs', interactive: false });
-      layer.addLayer(m);
-    } catch(_e1) { /* ignore a single point */ }
-  }
-  try { if (typeof map.invalidateSize === 'function') map.invalidateSize(false); } catch(_) {}
-  return layer;
-}
-
-async function loadWind(desiredOverride) {
-
-    // 1) Charger wind.json
-    let resp;
-    try {
-        resp = await fetch("wind.json?ts=" + Date.now(), { cache: "no-store" });
-    } catch (e) {
-        console.error("Erreur réseau sur wind.json", e);
-        return;
-    }
-    if (!resp.ok) {
-        console.error("Impossible de charger wind.json");
-        return;
-    }
-
-    let entries;
-    try {
-        entries = await resp.json();
-    } catch (e) {
-        console.error("wind.json invalide", e);
-        return;
-    }
-
-    if (!Array.isArray(entries) || entries.length < 2) {
-        console.error("wind.json ne contient pas U/V multi-échéances");
-        return;
-    }
-
-    // 2) Heure cible = celle choisie par l’utilisateur, sinon maintenant (peut être passée en paramètre)
-    let target;
-    if (desiredOverride) {
-        target = (desiredOverride instanceof Date) ? new Date(desiredOverride.getTime()) : new Date(desiredOverride);
-    } else if (typeof window !== 'undefined' && window.WIND_DESIRED_ISO) {
-        target = new Date(window.WIND_DESIRED_ISO);
-    } else if (typeof window !== 'undefined' && window._selectedWindTime instanceof Date) {
-        target = window._selectedWindTime;
-    } else {
-        target = new Date();
-    }
-    if (!(target instanceof Date) || isNaN(target)) { target = new Date(); }
-
-    // 3) Regrouper les champs par forecastTime
-    const hours = {};
-    for (const e of entries) {
-        const ft = e.header.forecastTime;
-        if (!hours[ft]) hours[ft] = {};
-        if (e.header.shortName === "10u") hours[ft].u = e;
-        if (e.header.shortName === "10v") hours[ft].v = e;
-        if (e.header.shortName === "gust" || e.header.shortName === "fg10") hours[ft].gust = e;
-    }
-
-    // 4) Trouver l’échéance la plus proche
-    let best = null;
-    let bestDt = null;
-    let bestDiff = Infinity;
-
-    for (const ft in hours) {
-        const h = hours[ft];
-        if (!h.u || !h.v) continue;
-
-        const ref = new Date(h.u.header.refTime);
-        const valid = new Date(ref.getTime() + h.u.header.forecastTime * 3600 * 1000);
-
-        const diff = Math.abs(valid.getTime() - target.getTime());
-        if (diff < bestDiff) {
-            bestDiff = diff;
-            best = h;
-            bestDt = valid;
-        }
-    }
-
-    if (!best) {
-        console.error("Aucune échéance exploitable");
-        return;
-    }
-
-    // 5) Construire les champs U/V pour gridToWindBarbs
-    const uField = {
-        header: best.u.header,
-        data: best.u.data
-    };
-
-    const vField = {
-        header: best.v.header,
-        data: best.v.data
-    };
-
-    const wind = [uField, vField];
-
-    // 6) Rafales
-    window._gustArray = best.gust ? best.gust.data : null;
-
-    // 7) Calculer les barbules
-    const barbs = gridToWindBarbs(wind);
-    window._lastWindBarbs = barbs;
-    window._meteoClickEnabled = true;
-
-    // 8) Dessiner les barbules
-    if (typeof drawWindBarbs === "function") {
-        drawWindBarbs(barbs);
-    }
-
-    // 9) Heure pour popup
-    window._currentWindTime = bestDt;
-
-    // 10) Mettre à jour l’encart méta
-    const meta = document.getElementById("wind-meta");
-    if (meta) {
-        const avg = barbs.length && Number.isFinite(barbs[0].avgKt)
-            ? barbs[0].avgKt.toFixed(1)
-            : "?";
-
-        const gust = barbs.length && Number.isFinite(barbs[0].gustKt)
-            ? barbs[0].gustKt.toFixed(1)
-            : null;
-
-        const dateStr = bestDt.toLocaleString("fr-FR", {
-            weekday: "short",
-            day: "2-digit",
-            month: "short",
-            hour: "2-digit",
-            minute: "2-digit"
-        });
-
-        meta.innerHTML = gust
-            ? `${dateStr}<br>Vent moyen : <b>${avg} kt</b> — Rafales : <b>${gust} kt</b>`
-            : `${dateStr}<br>Vent moyen : <b>${avg} kt</b>`;
-    }
-
-    // 11) IMPORTANT : ne pas toucher à #wind-dt
-}
-
-
-
-
-// Chargement initial : par défaut, NE PAS afficher la météo tant que l'utilisateur n'a pas cliqué sur le bouton.
-// Pour réactiver l'affichage automatique au démarrage, définir window.SHOW_WIND_ON_START = true avant l'init.
-if (typeof window !== 'undefined' && window.SHOW_WIND_ON_START === true) {
-  try { loadWind(); } catch(e) { console.warn('[WIND] load au démarrage a échoué:', e); }
-} else {
-  if (typeof window !== 'undefined') {
-    window.AppState = window.AppState || {};
-    window.AppState.isWindLayerVisible = false; // couche vent masquée par défaut
-  }
-}
 
 
 // ==============================================
@@ -5058,6 +4697,367 @@ btn.addEventListener("click", () => {
     }, 6000);
 });
 
+// ==============================================
+// METEO ..........................
+// ==============================================
+// Pane pour les isobares et labels (au-dessus des barbules)
+map.createPane('isobarsPane');
+map.getPane('isobarsPane').style.zIndex = 800;
+map.getPane('isobarsPane').style.pointerEvents = 'none';
+map.createPane('wavesPane');
+map.getPane('wavesPane').style.zIndex = 450;
+map.getPane('wavesPane').style.pointerEvents = 'none';
+
+
+function gridToWindBarbs(wind) {
+    const u = wind[0].data;
+    const v = wind[1].data;
+    const h = wind[0].header;
+
+    const points = [];
+
+    // Échantillonnage pour alléger l'affichage si la grille est dense
+    const stepX = Math.max(1, Math.floor(h.nx / 60)); // ~60 colonnes max
+    const stepY = Math.max(1, Math.floor(h.ny / 40)); // ~40 lignes max
+
+    // Détecter l'orientation géographique entre les bornes
+    const lonIncreasing = (h.lo2 - h.lo1) >= 0 ? true : false;
+    const latIncreasing = (h.la2 - h.la1) >= 0 ? true : false;
+
+    // Log d'orientation pour diagnostic une seule fois par appel
+    try {
+        console.log('GRIB extent:', { lo1: h.lo1, lo2: h.lo2, la1: h.la1, la2: h.la2, nx: h.nx, ny: h.ny, lonIncreasing, latIncreasing });
+    } catch (e) {}
+
+    // Surcharges utilisateur pour inversions manuelles sans redéploiement
+    // Si non définies, activer par défaut l'inversion gauche/droite et haut/bas pour corriger l'effet observé
+    if (typeof window !== 'undefined') {
+        if (typeof window.WIND_BARBS_FLIP_LR === 'undefined') {
+            window.WIND_BARBS_FLIP_LR = true;
+        }
+        if (typeof window.WIND_BARBS_FLIP_TB === 'undefined') {
+            window.WIND_BARBS_FLIP_TB = true;
+        }
+    }
+    const forceFlipLR = (typeof window !== 'undefined' && window.WIND_BARBS_FLIP_LR === true);
+    const forceFlipTB = (typeof window !== 'undefined' && window.WIND_BARBS_FLIP_TB === true);
+    try { console.log('Wind barbs flips:', { forceFlipLR, forceFlipTB }); } catch(e) {}
+
+    for (let j = 0; j < h.ny; j++) {
+        for (let i = 0; i < h.nx; i++) {
+            // Interpolation robuste entre les bornes, indépendante du signe de dx/dy et du mode de scan
+            let tX = (i + 0.5) / h.nx; // centre de cellule en X
+            let tY = (j + 0.5) / h.ny; // centre de cellule en Y
+
+            // Appliquer éventuellement une inversion manuelle des axes pour corriger l'effet miroir (bas-gauche ↔ haut-droite)
+            if (forceFlipLR) tX = 1 - tX; // inverse gauche/droite
+            if (forceFlipTB) tY = 1 - tY; // inverse haut/bas
+
+            // Interpole la latitude de la1 -> la2
+            let lat = h.la1 + tY * (h.la2 - h.la1);
+
+            // Interpole la longitude en tenant compte d'un éventuel franchissement de l'antiméridien
+            let dlon = h.lo2 - h.lo1;
+            if (Math.abs(dlon) > 180) {
+                dlon = dlon > 0 ? dlon - 360 : dlon + 360;
+            }
+            let rawLng = h.lo1 + tX * dlon;
+            // Normaliser la longitude en [-180, 180]
+            rawLng = ((rawLng + 540) % 360) - 180;
+
+            // Décalage manuel optionnel pour corriger un offset visuel connu
+            const manualLatOffset = (typeof window !== 'undefined' && typeof window.WIND_BARBS_LAT_OFFSET_DEG === 'number') ? window.WIND_BARBS_LAT_OFFSET_DEG : 0;
+            lat += manualLatOffset;
+
+            // Calculer l'index des données en fonction de l'orientation réelle
+            let iData = (lonIncreasing ? i : (h.nx - 1 - i));
+            let jData = (latIncreasing ? j : (h.ny - 1 - j));
+            // Important: on n'applique PAS les flips manuels sur l'index des données,
+            // uniquement sur les coordonnées (tX/tY). Ainsi, on effectue une rotation visuelle
+            // de la grille sans réassigner les valeurs U/V à d'autres cellules.
+            const idx = jData * h.nx + iData;
+
+
+            const uu = u[idx];
+            const vv = v[idx];
+
+            // Filtrer les valeurs manquantes/NaN
+            if (!isFinite(uu) || !isFinite(vv)) {
+                continue;
+            }
+
+            // Vitesse en m/s -> convertir en noeuds pour l'affichage des barbules
+            // On calcule systématiquement la vitesse moyenne (à partir de U/V) et, si présent,
+            // la vitesse de rafale à partir du champ des rafales. La vitesse utilisée pour
+            // dessiner la barbule dépend du mode (vent moyen vs rafales), mais on stocke les deux
+            // dans chaque point pour pouvoir les afficher dans le popup.
+            const avg_ms = Math.hypot(uu, vv);
+            const gust_ms_val = (typeof window !== 'undefined' && Array.isArray(window._gustArray)) ? window._gustArray[idx] : undefined;
+
+            let speed_ms = avg_ms;
+            const useGust = (typeof window !== 'undefined' && window.WIND_USE_GUST === true && Array.isArray(window._gustArray));
+            if (useGust && isFinite(gust_ms_val)) {
+                speed_ms = gust_ms_val; // champs de rafales exprimé en m/s
+            }
+            if (!isFinite(speed_ms)) {
+                continue;
+            }
+            const speed = speed_ms * 1.943844; // m/s -> kt (pour le rendu de la barbule)
+            const avgKt = isFinite(avg_ms) ? (avg_ms * 1.943844) : undefined;
+            const gustKt = isFinite(gust_ms_val) ? (gust_ms_val * 1.943844) : undefined;
+
+            // Convention météorologique (direction d'où vient le vent)
+            const dir = (Math.atan2(-uu, -vv) * 180 / Math.PI + 360) % 360;
+
+            // Normaliser la longitude en [-180, 180]
+            const lng = ((rawLng + 540) % 360) - 180;
+
+            // Générer une barbule SVG simple
+            const barbSize = 32;
+            const svg = `
+            <svg width="${barbSize}" height="${barbSize}" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"
+                 style="transform: rotate(${dir}deg);">
+              <line x1="32" y1="32" x2="32" y2="5" stroke="black" stroke-width="3"/>
+            </svg>`;
+
+            // Appliquer l'échantillonnage
+            if ((i % stepX === 0) && (j % stepY === 0)) {
+                points.push({
+                lat: lat,
+                lon: lng,
+                lng: lng,
+                speed: speed,
+                dir: dir,
+                _idx: idx,
+                avgKt: avgKt,
+                gustKt: gustKt,
+                icon: {
+                    svg: svg,
+                    size: barbSize
+                }
+            });
+
+            }
+        }
+    }
+
+    return points;
+}
+
+// Fonction utilitaire optionnelle pour dessiner explicitement les barbules à partir d'une liste de points
+// Usage: window.drawWindBarbs(window._lastWindBarbs)
+function drawWindBarbs(points) {
+  try {
+    if (!Array.isArray(points) && typeof window !== 'undefined' && Array.isArray(window._lastWindBarbs)) {
+      points = window._lastWindBarbs;
+    }
+  } catch(_) {}
+  if (!points || !Array.isArray(points)) return;
+  if (typeof L === 'undefined' || typeof map === 'undefined') return;
+
+  // S'assurer que le pane existe
+  try {
+    if (!map.getPane('windbarbs')) {
+      map.createPane('windbarbs');
+      const p = map.getPane('windbarbs');
+      if (p && p.style) {
+        p.style.zIndex = 650;
+        p.style.pointerEvents = 'none';
+      }
+    }
+  } catch(_) {}
+
+  // Créer ou réutiliser la couche
+  if (typeof window !== 'undefined' && !window._windBarbLayer) {
+    try { window._windBarbLayer = L.layerGroup([], { pane: 'windbarbs' }).addTo(map); } catch(_) {}
+  }
+  const layer = (typeof window !== 'undefined') ? window._windBarbLayer : null;
+  if (!layer) return;
+  try { if (typeof layer.clearLayers === 'function') layer.clearLayers(); } catch(_) {}
+
+  // Options et rotation similaires à loadWind
+  const opts = { size: 44, color: '#000', fillColor: '#000', strokeColor: '#000', opacity: 0.95, pane: 'windbarbs', interactive: false };
+  const _rot180 = (typeof window !== 'undefined' && window.WIND_BARBS_ROTATE_PLUS_180 === true);
+  const _rotOffset = (typeof window !== 'undefined' && Number.isFinite(window.WIND_BARBS_ROTATE_OFFSET)) ? (+window.WIND_BARBS_ROTATE_OFFSET) : 0;
+
+  for (const p of points) {
+    try {
+      const ll = [p.lat, (p.lon ?? p.lng)];
+      const dirAdj = (((_rot180 ? (p.dir + 180) : p.dir) + _rotOffset) % 360 + 360) % 360;
+
+      // Tenter d'utiliser le plugin si disponible
+      if (typeof L.windBarb === 'function') {
+        const m = L.windBarb(ll, p.speed, dirAdj, opts);
+        layer.addLayer(m);
+        continue;
+      } else if (typeof L.WindBarb === 'function') {
+        const m = new L.WindBarb(ll, p.speed, dirAdj, opts);
+        layer.addLayer(m);
+        continue;
+      }
+
+      // Sinon: créer des marqueurs simples à partir du SVG fourni dans points[i].icon.svg
+      const size = (p.icon && Number.isFinite(p.icon.size)) ? p.icon.size : 44;
+      let html = (p.icon && typeof p.icon.svg === 'string') ? p.icon.svg : '';
+      if (!html || html.indexOf('<svg') === -1) {
+        // Fallback très simple si aucun SVG pré-calculé n'est fourni
+        const dir = Number.isFinite(p.dir) ? p.dir : 0;
+        html = `\n<svg width="${size}" height="${size}" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">\n  <g transform="rotate(${dir},32,32)">\n    <line x1="32" y1="54" x2="32" y2="10" stroke="#000" stroke-width="2" stroke-linecap="round"/>\n  </g>\n</svg>`;
+      }
+      const icon = L.divIcon({ className: 'windbarb', html, iconSize: [size, size] });
+      const m = L.marker(ll, { icon, pane: 'windbarbs', interactive: false });
+      layer.addLayer(m);
+    } catch(_e1) { /* ignore a single point */ }
+  }
+  try { if (typeof map.invalidateSize === 'function') map.invalidateSize(false); } catch(_) {}
+  return layer;
+}
+
+async function loadWind(desiredOverride) {
+
+    // 1) Charger wind.json
+    let resp;
+    try {
+        resp = await fetch("wind.json?ts=" + Date.now(), { cache: "no-store" });
+    } catch (e) {
+        console.error("Erreur réseau sur wind.json", e);
+        return;
+    }
+    if (!resp.ok) {
+        console.error("Impossible de charger wind.json");
+        return;
+    }
+
+    let entries;
+    try {
+        entries = await resp.json();
+    } catch (e) {
+        console.error("wind.json invalide", e);
+        return;
+    }
+
+    if (!Array.isArray(entries) || entries.length < 2) {
+        console.error("wind.json ne contient pas U/V multi-échéances");
+        return;
+    }
+
+    // 2) Heure cible = celle choisie par l’utilisateur, sinon maintenant (peut être passée en paramètre)
+    let target;
+    if (desiredOverride) {
+        target = (desiredOverride instanceof Date) ? new Date(desiredOverride.getTime()) : new Date(desiredOverride);
+    } else if (typeof window !== 'undefined' && window.WIND_DESIRED_ISO) {
+        target = new Date(window.WIND_DESIRED_ISO);
+    } else if (typeof window !== 'undefined' && window._selectedWindTime instanceof Date) {
+        target = window._selectedWindTime;
+    } else {
+        target = new Date();
+    }
+    if (!(target instanceof Date) || isNaN(target)) { target = new Date(); }
+
+    // 3) Regrouper les champs par forecastTime
+    const hours = {};
+    for (const e of entries) {
+        const ft = e.header.forecastTime;
+        if (!hours[ft]) hours[ft] = {};
+        if (e.header.shortName === "10u") hours[ft].u = e;
+        if (e.header.shortName === "10v") hours[ft].v = e;
+        if (e.header.shortName === "gust" || e.header.shortName === "fg10") hours[ft].gust = e;
+    }
+
+    // 4) Trouver l’échéance la plus proche
+    let best = null;
+    let bestDt = null;
+    let bestDiff = Infinity;
+
+    for (const ft in hours) {
+        const h = hours[ft];
+        if (!h.u || !h.v) continue;
+
+        const ref = new Date(h.u.header.refTime);
+        const valid = new Date(ref.getTime() + h.u.header.forecastTime * 3600 * 1000);
+
+        const diff = Math.abs(valid.getTime() - target.getTime());
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            best = h;
+            bestDt = valid;
+        }
+    }
+
+    if (!best) {
+        console.error("Aucune échéance exploitable");
+        return;
+    }
+
+    // 5) Construire les champs U/V pour gridToWindBarbs
+    const uField = {
+        header: best.u.header,
+        data: best.u.data
+    };
+
+    const vField = {
+        header: best.v.header,
+        data: best.v.data
+    };
+
+    const wind = [uField, vField];
+
+    // 6) Rafales
+    window._gustArray = best.gust ? best.gust.data : null;
+
+    // 7) Calculer les barbules
+    const barbs = gridToWindBarbs(wind);
+    window._lastWindBarbs = barbs;
+    window._meteoClickEnabled = true;
+
+    // 8) Dessiner les barbules
+    if (typeof drawWindBarbs === "function") {
+        drawWindBarbs(barbs);
+    }
+
+    // 9) Heure pour popup
+    window._currentWindTime = bestDt;
+
+    // 10) Mettre à jour l’encart méta
+    const meta = document.getElementById("wind-meta");
+    if (meta) {
+        const avg = barbs.length && Number.isFinite(barbs[0].avgKt)
+            ? barbs[0].avgKt.toFixed(1)
+            : "?";
+
+        const gust = barbs.length && Number.isFinite(barbs[0].gustKt)
+            ? barbs[0].gustKt.toFixed(1)
+            : null;
+
+        const dateStr = bestDt.toLocaleString("fr-FR", {
+            weekday: "short",
+            day: "2-digit",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit"
+        });
+
+        meta.innerHTML = gust
+            ? `${dateStr}<br>Vent moyen : <b>${avg} kt</b> — Rafales : <b>${gust} kt</b>`
+            : `${dateStr}<br>Vent moyen : <b>${avg} kt</b>`;
+    }
+
+    // 11) IMPORTANT : ne pas toucher à #wind-dt
+}
+
+
+
+
+// Chargement initial : par défaut, NE PAS afficher la météo tant que l'utilisateur n'a pas cliqué sur le bouton.
+// Pour réactiver l'affichage automatique au démarrage, définir window.SHOW_WIND_ON_START = true avant l'init.
+if (typeof window !== 'undefined' && window.SHOW_WIND_ON_START === true) {
+  try { loadWind(); } catch(e) { console.warn('[WIND] load au démarrage a échoué:', e); }
+} else {
+  if (typeof window !== 'undefined') {
+    window.AppState = window.AppState || {};
+    window.AppState.isWindLayerVisible = false; // couche vent masquée par défaut
+  }
+}
 
 
 // Utilisé par onclick="toggleVent()" (vent moyen) et onclick="toggleRafale()" (rafales)
