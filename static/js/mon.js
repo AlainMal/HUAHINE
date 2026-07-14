@@ -865,7 +865,7 @@ const updateAISMarker = (ship) => {
 
       // MMSI commençant par 2 à 7
       if (['2','3','4','5','6','7'].includes(first)) {
-        return classe === 'A' ? '#FF0000' : '#0000FF'; // bleu (A) ou rouge (B)
+        return classe === 'A' ? '#FF0000' : '#0000FF'; // rouge (A) ou bleu (B)
       }
 
       // Par défaut
@@ -5713,7 +5713,7 @@ function renderWavesOverlay(g) {
         if ((aEast - aWest) < (east - west)) {
             west = aWest; east = aEast;
         }
-        // Sécurité: ne jamais dépasser 350° pour éviter de couvrir le monde entier
+        // Sécurité : ne jamais dépasser 350° pour éviter de couvrir le monde entier
         if ((east - west) > 350) {
             east = west + 350;
         }

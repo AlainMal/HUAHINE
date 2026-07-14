@@ -1922,8 +1922,8 @@ async def cleanup(window):
     print("Nettoyage terminé")
     sys.exit(0)
 
-from quart import Response
-0
+
+
 @quart_app.route("/wind.json")
 async def wind_json():
     try:

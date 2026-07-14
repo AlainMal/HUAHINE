@@ -80,6 +80,10 @@ def register_aide_routes(app):
     async def aide_nmea_page():
         return await render_template('nmea.html')
 
+    @aide_bp.route('/meteo')
+    async def aide_meteo_page():
+        return await render_template('meteo.html')
+
     # Enregistrer le Blueprint sur l'application principale sous le préfixe /aide
     app.register_blueprint(aide_bp, url_prefix='/aide')
 
